@@ -57,7 +57,7 @@ struct TVariant;	//forward definition of a variant
 struct TFunction;
 struct Array;
 struct TObject;
-
+#include <memory>
 typedef union TValue
 {
 	NUMBER f;						//floating number
@@ -103,8 +103,9 @@ public:
 struct Array {
 	TVariant* vars;
 	word count;
+	byte ref;
 public:
-	Array() { count = 0; vars = 0; }
+	Array() { ref = 0; count = 0; vars = 0; }
 	bool resize(const int CountElements);
 	void dispose();
 };
@@ -140,7 +141,7 @@ public:
 public:
 	TFunction(VarType type, c_fun data);
 	void dispose();
-	int findVars(const TString* t) const;
+	int findVars(const TString& t) const;
 };
 
 struct TStack
@@ -180,8 +181,9 @@ struct CState
 	int	m_error;						//store error (parsing, compiling)
 public:
 	TObjectList objects;					//classes
-	TFucList functions;					//Registry all functions
-	VarList constants;					//Registry all constants
+	TFucList functions;					//Function Registry
+	VarList constants;					//constant Registry(so far String)
+	std::vector<Array> arrays;			//Array Registry
 	VarsReg framestack;					//frame stack locals variables
 	TFunction *global;					//Native function
 	//TParent* global;
@@ -189,12 +191,12 @@ public:
 	~CState();
 	void destroy();
 	void init();
-	int createSymbol(TFunction*parent, const TString* name, const VarType type, c_fun data);
+	int createSymbol(TFunction*parent, const TString& name, const VarType type, c_fun data);
 	void setError(int er) {
 		m_error = er; 
 	}
 	int getError() { return m_error; }
 	void deleteVal(TVariant* val);
 	int isError();
-	int findSymbol(const TFunction* fun, const TString* name, bool& local) const;
+	int findSymbol(const TFunction* fun, const TString& name, bool& local) const;
 };

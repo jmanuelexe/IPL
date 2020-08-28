@@ -182,21 +182,24 @@ void Tokenizer::parseSpecial()
 	
 	switch (ch)
 	{	
-	case '"' :
+	case '"' :	//long string enclosed by either " or ' are valid
 	case '\'':
-		nextToken.text.begin--;
+		nextToken.text.begin = s;	//begin must point to s after the " or '
 		while (*s && ch != *s)
 		{
 			nextChar();
 		}
 
-		if (*s == ch) s++;
+		if (*s == ch) {
+			nextToken.type = TK_STRING;
+			nextToken.text.end = s;
+			nextToken.text.length = int(nextToken.text.end - nextToken.text.begin);
+			s++;
+		}
 		else { 
 			nextToken.type = TK_ERRORPARSE; 
-			return;	
-		}		
-		nextToken.type = TK_STRING;
-		break;
+		}
+		return;
 	case '/' :
 		if (*s == '*') 
 		{				//long comment

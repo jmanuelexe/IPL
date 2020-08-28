@@ -26,25 +26,16 @@ int _tmain(int argc, _TCHAR* argv[])
 {
 	_CrtSetDbgFlag(_CRTDBG_CHECK_ALWAYS_DF | _CRTDBG_LEAK_CHECK_DF | 
 		_CRTDBG_DELAY_FREE_MEM_DF | _CRTDBG_ALLOC_MEM_DF);
-	/*
-	function foo(v)
+	
+	//if (v >= 1 && v <= 2)
+	const char* s = R"(
+function foo(v)
 	{
 		print(v);
 	}
 	v[0] = 10;
 	v[1] = 20;
-	print(v);
-	*/
-	const char* s = R"(
-a=0;
-b=1;
-c=2;
-d=3;
-e=4;
-f=5;
-g=6;
-h=7;
-print(a,b,c,d,e,f,g, h);
+	foo(v);
 )";
 
 	CState state;
@@ -56,7 +47,7 @@ print(a,b,c,d,e,f,g, h);
 	TString strPrint;
 	
 	strPrint = makeString("print");
-	state.createSymbol(state.global, &strPrint, V_CFUNCT, print);
+	state.createSymbol(state.global, strPrint, V_CFUNCT, print);
 	
 //#define TYPED
 #ifdef  TYPED
@@ -72,6 +63,6 @@ print(a,b,c,d,e,f,g, h);
 		printf("\n======================================================\n");
 		vm.run(&state);
 	}
-		
+
 	return 0;
 }

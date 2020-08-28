@@ -14,6 +14,7 @@ typedef float NUMBER;
 #define AS_FLOAT(ip) *((NUMBER*)(ip))
 #define AS_BOOL(ip) *((bool*)(ip))
 #define AS_INT(ip) *(int*)(ip)
+#define AS_SHORT(ip) *((short*)(ip));
 
 #define READ_WORD(ip) *((word*)(ip)); ip+=2;
 #define READ_FLOAT(ip) *((NUMBER*)(ip)); ip+=4;

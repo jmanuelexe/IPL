@@ -32,8 +32,8 @@ public:
 	std::vector<short> continues;	//labels to all continues in a function
 	std::vector<short> breaks;		//labels to all returns of a function
 	std::vector<short> returns;	//labels to all returns of a function
-	int findVar(TString *varName, bool &outLocal);
-	int addVar(TString* varName, VarType type, int index);
+	int findVar(const TString &varName, bool &outLocal);
+	int addVar(const TString& varName, VarType type, int index);
 };
 
 class CParser
@@ -47,7 +47,7 @@ public:
 	void parseClassDef				(TGroup& group);
 	void parseFunctionCall			(TGroup& group, Token &FunName);
 	unsigned parseAssignment		(TGroup& group, unsigned token);
-	int createVarIfnotExist			(TGroup& group, TString* varName, VarType v, bool& outLocal);
+	int createVarIfnotExist			(TGroup& group, TString& varName, VarType v, bool& outLocal);
 	void praseExpresionOrFuncCall	(TGroup& group);
 	void functionDeclaration		(TGroup& group);
 	bool emitCommoNumber			(TFunction* fun, int number);

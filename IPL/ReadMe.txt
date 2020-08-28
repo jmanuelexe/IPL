@@ -1,40 +1,25 @@
-========================================================================
-    CONSOLE APPLICATION : basis Project Overview
-========================================================================
+IPL stand for "Interpreted Programming Language".
 
-AppWizard has created this basis application for you.
+IPL is Dynamic language that I have been working on, on my spare time.
+it compile the into byte codes that the Virtual Machine(VM) will use to run the application.
+to run a program on the main file I a passing a char string containg the source of the progrma to run.
+as for now it support variables that can be integers, floats, bolean, string, and vectors. Because it
+is dynamic language just by saying n=1; it is concider an interget.
 
-This file contains a summary of what you will find in each of the files that
-make up your basis application.
+so far the syntax supported are as follows
 
+//loops
+for i=1 to 5
+	print(i);
+endfor;
 
-basis.vcxproj
-    This is the main project file for VC++ projects generated using an Application Wizard.
-    It contains information about the version of Visual C++ that generated the file, and
-    information about the platforms, configurations, and project features selected with the
-    Application Wizard.
+/////////////
 
-basis.vcxproj.filters
-    This is the filters file for VC++ projects generated using an Application Wizard. 
-    It contains information about the association between the files in your project 
-    and the filters. This association is used in the IDE to show grouping of files with
-    similar extensions under a specific node (for e.g. ".cpp" files are associated with the
-    "Source Files" filter).
+if(i=0) then
+	print("Cero");
+else
+	print("one");
+endif;
 
-basis.cpp
-    This is the main application source file.
-
-/////////////////////////////////////////////////////////////////////////////
-Other standard files:
-
-StdAfx.h, StdAfx.cpp
-    These files are used to build a precompiled header (PCH) file
-    named basis.pch and a precompiled types file named StdAfx.obj.
-
-/////////////////////////////////////////////////////////////////////////////
-Other notes:
-
-AppWizard uses "TODO:" comments to indicate parts of the source code you
-should add to or customize.
-
-/////////////////////////////////////////////////////////////////////////////
+///---------------------------------------
+you can pass a pointer to a C function that the interpreter can call at run time.

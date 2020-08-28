@@ -216,7 +216,7 @@ void CState::init()
 	global = 0;
 
 	name = makeString("Main");
-	int index = createSymbol(0, &name, V_FUNCT, NULL);
+	int index = createSymbol(0, name, V_FUNCT, NULL);
 
 	if(index != NOFOUND)
 		global = functions[index];
@@ -243,9 +243,24 @@ void CState::destroy()
 		delete functions[n];
 	}
 
+	for (n = 0; n < constants.size(); n++)
+	{
+		if (constants[n].type == V_STRING) {
+			delete[] constants[n].as.s;
+		}
+	}
+	
+	for (n = 0; n < arrays.size(); n++) 
+	{
+		arrays[n].dispose();
+	}
+
+	//remove resources
+	arrays.clear();
 	objects.clear();
 	functions.clear();
 	constants.clear();
+
 }
 
 int CState::isError()
@@ -255,7 +270,7 @@ int CState::isError()
 }
 
 //find symbol in the scope or deeper if not found on the active scope
-int CState::findSymbol(const TFunction* fun, const TString* name, bool& local) const
+int CState::findSymbol(const TFunction* fun, const TString& name, bool& local) const
 {
 	int index = -1;
 	const TFunction* pCurFun = fun;
@@ -282,15 +297,15 @@ int CState::findSymbol(const TFunction* fun, const TString* name, bool& local) c
 
 // Creates a variable in the "parent" or create function(C or native)
 // add it to the "parent" function scope if parent = null
-int CState::createSymbol(TFunction* parent, const TString* name, const VarType type, c_fun data)
+int CState::createSymbol(TFunction* parent, const TString& name, const VarType type, c_fun data)
 {
 	int index = NONE;
 	TDes des;
 	TVariant var;
 
-	des.name.begin  = name->begin;
-	des.name.end	= name->end;
-	des.name.length = name->length;
+	des.name.begin  = name.begin;
+	des.name.end	= name.end;
+	des.name.length = name.length;
 
 	switch (type)
 	{
@@ -311,7 +326,7 @@ int CState::createSymbol(TFunction* parent, const TString* name, const VarType t
 		}
 		
 #ifdef DEBUG
-		printf("Function '%.*s' added.\n", name->length, name->begin);
+		printf("Function '%.*s' added.\n", name.length, name.begin);
 #endif // DEBUG
 	}
 	break;
@@ -321,7 +336,7 @@ int CState::createSymbol(TFunction* parent, const TString* name, const VarType t
 			parent->vars.push_back(des);
 			index = (int)parent->vars.size() - 1;
 #ifdef DEBUG
-			printf("Var '%.*s'index(%d) added in function %.*s.\n", name->length, name->begin, index,
+			printf("Var '%.*s'index(%d) added in function %.*s.\n", name.length, name.begin, index,
 				parent->des.name.length, parent->des.name.begin);
 #endif // DEBUG
 		
@@ -335,9 +350,13 @@ void CState::deleteVal(TVariant *val)
 {
 	switch (val->type) {
 	case V_ARRAY:
-		printf("\ndeleting array");
+		printf("\nDeleting array");
 		val->type = V_NULL;
-		delete val->as.array;
+		if (val->as.array)
+		{
+			delete val->as.array;
+			val->as.array = 0;
+		}
 	default: break;
 	}
 }
@@ -407,11 +426,11 @@ int TObjectDef::findFunctionRecursive(CState* state, const TString* name)
 }
 
 //finds a variable in this class
-int TFunction::findVars(const TString* t) const
+int TFunction::findVars(const TString& t) const
 {
 	for (int index = 0; index < (int)vars.size(); index++) 
 	{
-		if (strEq(&vars[index].name, t))
+		if (strEq(&vars[index].name, &t))
 			return index;
 	}
 	return NOFOUND;
@@ -448,11 +467,11 @@ void CVM::printval(CState *state, TVariant *x)
 	case V_BOOL	: printf((x->as.b) ? "true" : "false"); break;
 	case V_INT: printf("%d", x->as.i); break;
 	case V_STRING: 
-		printf("%s", state->constants.at(x->as.i).as.s); break;
+		printf("%.*s", state->constants.at(x->as.i).as.s[0], state->constants.at(x->as.i).as.s+1); break;
 	}
 }
 
-NUMBER doPower(NUMBER a, NUMBER b)
+NUMBER CVM::doPower(NUMBER a, NUMBER b)
 {
 	NUMBER r;
 	word i;
@@ -468,16 +487,19 @@ void CVM::storeA(CState * state, TFunction* fun, int varindex)
 	TVariant* val = stack.pop();
 	int arrayIndex = stack.pop()->as.i;
 
-	if(var->type != V_ARRAY){
+	if(var->type != V_ARRAY) 
+	{
+		state->arrays.emplace_back();
 		state->deleteVal(var);
 		var->type = V_ARRAY;
-		var->as.array = new Array;
+		var->as.array = &state->arrays.back();
+		var->as.array->ref++;
 	}
 
-	if (arrayIndex >= var->as.array->count)
-	{
+	if (arrayIndex >= var->as.array->count) {
 		var->as.array->resize(arrayIndex+1);
 	}
+
 	var->as.array->vars[arrayIndex].as = val->as;
 	var->as.array->vars[arrayIndex].type = val->type;
 #ifdef DEBUG
@@ -487,23 +509,29 @@ void CVM::storeA(CState * state, TFunction* fun, int varindex)
 #endif
 }
 
+void CVM::assing(CState* state, TVariant* source, TVariant *destination)
+{
+	if (source->type == V_ARRAY) source->as.array->ref++;
+	if (destination->type == V_ARRAY) destination->as.array->ref--;
+	
+	destination->type = source->type;
+	destination->as = source->as;
+}
+
 void CVM::store(CState * state, TFunction *fun, int index, bool local)
 {
 	TVariant *source, *destination;
 
+	//We pop the value off the stack and then we mus delete if it reserved memory(so far only array)
+	//then we copy it destination on the frame stack
 	source = stack.pop();
 	destination = &state->framestack.sp[index];
-	state->deleteVal(destination);
-
-
-	destination->type = source->type;
-	destination->as = source->as;
+	assing(state, source, destination);
 
 #ifdef DEBUG
 	printf("%-15.*s", fun->vars[index].name.length, fun->vars[index].name.begin);
-	//printval(state, destination);
 #endif
-	}
+}
 
 #define SHOWSTACK \
 printf("[ "); TVariant *x;\
@@ -550,6 +578,20 @@ void CVM::_run(CState *state, TFunction* fun)
 		ip++;
 		switch (opcode)
 		{
+		case OP_SETS:
+		{
+			index = READ_WORD(ip);
+			a = &state->framestack.sp[index];
+			state->deleteVal(a);
+			a->as.i = READ_WORD(ip);
+			a->type = V_STRING;
+#ifdef DEBUG
+			printStr(&fun->vars[index].name);
+			//printf("=%d %-11s", state->framestack.sp[index].as.i, " ");
+			printval(state, a);
+#endif
+		}
+		break;
 		case OP_SETI: 
 		{
 			index= READ_WORD(ip);
@@ -583,7 +625,7 @@ void CVM::_run(CState *state, TFunction* fun)
 			a->as.b = READ_BOOL(ip); ip ++;
 			a->type = V_BOOL;
 #ifdef DEBUG
-			//printStr(&fun->vars[index].name);
+			printStr(&fun->vars[index].name);
 			printf("=%d ", state->framestack.sp[index].as.i);
 #endif
 		}		break;
@@ -723,17 +765,17 @@ void CVM::_run(CState *state, TFunction* fun)
 		case OP_JMZ:
 			b = stack.pop();
 			if (b->as.b == 0) {
-				ip = cp + READ_WORD(ip); //if false jump
+				ip = cp + (short)AS_WORD(ip); //if false jump
 			} else
 				ip +=WORD_SIZE;	//else skip label(2bytes) and go to next instruction
 #ifdef DEBUG
-			printf("jump to %s\t", OPCODESTR(*(byte*)(ip)));
+			printf(" jump to %p\t", ip);
 #endif
 			break;
 		case OP_JMP : 
-			ip = cp +*(word *)(ip);
+			ip = cp +AS_WORD(ip);
 #ifdef DEBUG
-			printf("jump to %s\t", OPCODESTR(*(byte*)(ip)));
+			printf("jump to %p\t", ip);
 #endif
 			break;		
 		case OP_CALL:
@@ -774,6 +816,7 @@ void CVM::_run(CState *state, TFunction* fun)
 		SHOWSTACK
 #endif
 	}
+	printf("%p: %-10s ", ip, OPCODESTR((OPCODE)*ip));
   }
 
 //5030 broadway suite 707
@@ -783,11 +826,6 @@ void CVM::run(CState *state)
 	if (state->getError()>ERRORS)
 	{
 		printf("Runtime error :%s\n", GETERROR(state->getError()));
-	}
-	
-	for (unsigned i = 0; i < state->framestack.stack.size(); i++) 
-	{
- 		state->deleteVal(&state->framestack.stack[i]);
 	}
 	state->framestack.stack.clear();
 }

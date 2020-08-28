@@ -5,21 +5,21 @@
 OPCODE opshortcut[2][2] = { { OP_INCF,OP_INCI},
 									{ OP_DECF,OP_DECI} };
 
-int TGroup::findVar(TString* varName, bool& outLocal)
+int TGroup::findVar(const TString& varName, bool& outLocal)
 {
 	for (int index = 0; index < (int)vars.size(); index++) 
 	{
-		if(strEq(&vars[index].des.name, varName))
+		if(strEq(&vars[index].des.name, &varName))
 			return index;	
 	}
 
 	return NOFOUND;
 }
 
-int TGroup::addVar(TString* varName, VarType type, int index)
+int TGroup::addVar(const TString& varName, VarType type, int index)
 {
 	TScoupVarInfo v;
-	v.des.name = *varName;
+	v.des.name = varName;
 	v.des.type = type;
 	v.index = index;
 	vars.emplace_back(v);
@@ -52,7 +52,7 @@ void CParser::functionDeclaration(TGroup& group)
 		return;
 	}
 	
-	fIndex = state->createSymbol(group.parent, &tokenizer.curToken.text, V_FUNCT, 0);
+	fIndex = state->createSymbol(group.parent, tokenizer.curToken.text, V_FUNCT, 0);
 	
 	if (fIndex == NOFOUND) {
 		error(&tokenizer.curToken.text, "Unable to create.");
@@ -131,7 +131,8 @@ int CParser::storeParamlist(TGroup& group)
 	//Put the parameter in invers order
 	for (int i = (int)tokens.size() - 1; i >= 0; i--)
 	{
-		word index = state->createSymbol(group.parent, &tokens[i].text, V_VAR, 0);
+		word index = state->createSymbol(group.parent, tokens[i].text, V_VAR, 0);
+		group.addVar(tokens[i].text, V_VAR, index);
 		writeCode(group.parent)->emit1i(OP_STOREV, index);
 	}
 	
@@ -163,7 +164,7 @@ void CParser::parseFunctionCall(TGroup& group, Token &FunName)
 			error("Mismatch number of parmeters", s);
 		}
 		else {
-			writeCode(group.parent)->emit2i(OP_CALL, fIndex, numparam);
+			writeCode(group.parent)->emit2w(OP_CALL, fIndex, numparam);
 		}
 	}
 	else {
@@ -181,10 +182,11 @@ unsigned CParser::parseAssignment(TGroup& group, unsigned index)
 		writeCode(group.parent)->emit1w(OP_STOREV, index);
 	} else {
 		switch (tokenizer.curToken.type) {
-		case TK_INTEGER:	writeCode(group.parent)->emit2i(OP_SETI, index, (int)strtol(tokenizer.curToken.text.begin, 0, 0)); break;
+		case TK_STRING:	writeCode(group.parent)->emit2w(OP_SETS, index, addConstant(tokenizer.curToken));	break;
+		case TK_INTEGER:	writeCode(group.parent)->emit2w(OP_SETI, index, (int)strtol(tokenizer.curToken.text.begin, 0, 0)); break;
 		case TK_FLOAT:		writeCode(group.parent)->emit1i1f(OP_SETF, index, (NUMBER)strtod(tokenizer.curToken.text.begin, 0)); break;
 		case TK_TRUE :		writeCode(group.parent)->emit1i(OP_SETB, index); writeCode(group.parent)->emitB(1); break;
-		case TK_FALSE:		writeCode(group.parent)->emit1i(OP_SETB, index); writeCode(group.parent)->emitB(1); break;
+		case TK_FALSE:		writeCode(group.parent)->emit1i(OP_SETB, index); writeCode(group.parent)->emitB(0); break;
 		}
 		tokenizer.scan();
 	}
@@ -192,7 +194,7 @@ unsigned CParser::parseAssignment(TGroup& group, unsigned index)
 	return index;
 }
 
-int CParser::createVarIfnotExist(TGroup& group, TString *varName, VarType type, bool &outLocal)
+int CParser::createVarIfnotExist(TGroup& group, TString &varName, VarType type, bool &outLocal)
 {	
 	int localIndex;
 	localIndex = group.findVar(varName, outLocal);
@@ -222,7 +224,7 @@ void CParser::praseExpresionOrFuncCall(TGroup& group)
 	case TK_PLUSPLUS:
 	case TK_LESSLESS:
 		var_or_func.type = TK_IDENTIFIER;		
-		index = createVarIfnotExist(group, &var_or_func.text, V_VAR, local);
+		index = createVarIfnotExist(group, var_or_func.text, V_VAR, local);
 		if (index == NOFOUND) {
 			error(&var_or_func.text, "can not be created");
 			return;
@@ -237,7 +239,7 @@ void CParser::praseExpresionOrFuncCall(TGroup& group)
 
 		break;
 	case TK_COMMA:
-		index = createVarIfnotExist(group, &var_or_func.text, V_VAR, local);
+		index = createVarIfnotExist(group, var_or_func.text, V_VAR, local);
 		tokenizer.scan();
 		praseExpresionOrFuncCall(group);
 		break;
@@ -249,7 +251,7 @@ void CParser::praseExpresionOrFuncCall(TGroup& group)
 		match(TK_EQ, "Equal sign not found.");
 		parseExpresion(group);
 
-		index = createVarIfnotExist(group, &var_or_func.text, V_ARRAY, local);
+		index = createVarIfnotExist(group, var_or_func.text, V_ARRAY, local);
 		
 		if (index == NOFOUND) 
 			error(&var_or_func.text, "can't be created");
@@ -259,7 +261,7 @@ void CParser::praseExpresionOrFuncCall(TGroup& group)
 
 		break;
 	case TK_EQ:	
-		index = createVarIfnotExist(group, &var_or_func.text, V_VAR, local);
+		index = createVarIfnotExist(group, var_or_func.text, V_VAR, local);
 		if(index == NOFOUND) error(&var_or_func.text, "can't be created");
 		else
 			parseAssignment(group, index);
@@ -271,7 +273,7 @@ void CParser::praseExpresionOrFuncCall(TGroup& group)
 	default:
 		if (var_or_func.type == TK_IDENTIFIER)
 		{
-			index = createVarIfnotExist(group, &var_or_func.text, V_VAR, local);
+			index = createVarIfnotExist(group, var_or_func.text, V_VAR, local);
 			if (index == NOFOUND) error(&var_or_func.text, "Identifier not found");
 			//writeCode(state).emit1i(OP_PUSHVA, index);
 			//writeCode(state).emit1i(OP_PUSHV, index);
@@ -308,10 +310,10 @@ int CParser::addConstant( Token& token)
 		v.type = V_INT;
 		break;
 	case TK_STRING:
-		v.as.s = (char*)malloc((size_t)(token.text.length + 1));
-		memcpy((v.as.s+1), token.text.begin, (size_t)(token.text.length+1));
+		v.as.s = new char[token.text.length + 1];
+		memcpy((v.as.s+1), token.text.begin, (size_t)token.text.length);
 		v.type = V_STRING;
-		v.as.s[0] = (token.text.length + 1);
+		v.as.s[0] = token.text.length;
 		break;
 	}
 
@@ -360,12 +362,12 @@ void CParser::parseFactor(TGroup& group)
 			parseExpresion(group);
 			match(TTOKEN(']'), "clossing bracket spected");
 
-			index = createVarIfnotExist(group, &varName.text, V_VAR, local);
+			index = createVarIfnotExist(group, varName.text, V_VAR, local);
 			writeCode(group.parent)->emit1w(OP_PUSHVA, index);
 		}
 		else 
 		{
-			index = createVarIfnotExist(group, &varName.text, V_VAR, local);
+			index = createVarIfnotExist(group, varName.text, V_VAR, local);
 			if (index == NOFOUND)
 				error(&varName.text, "can't be created");
 
@@ -494,6 +496,7 @@ void CParser::parseIF(TGroup& group)
 	
 	if(tokenizer.curToken.type == TK_ELSE) 
 	{
+		tokenizer.scan();
 		l2 = writeCode(group.parent)->beginjump(OP_JMP); //jump regardless
 		writeCode(group.parent)->endJump(l1);
 		TGroup innerGroup2(group.parent);
@@ -513,7 +516,6 @@ void CParser::parseIF(TGroup& group)
 void CParser::parseForLoop(TGroup& group)
 {
 	short l2 = 0;
-
 	word varIndex;
 	bool local;
 	tokenizer.scan();
@@ -522,7 +524,7 @@ void CParser::parseForLoop(TGroup& group)
 
 	fors++;
 	if (!match(TK_IDENTIFIER, "Identifier")) return;
-	varIndex = createVarIfnotExist(group, &var.text, V_VAR, local);
+	varIndex = createVarIfnotExist(group, var.text, V_VAR, local);
 	
 	parseAssignment(group, varIndex);
 
@@ -543,7 +545,7 @@ void CParser::parseForLoop(TGroup& group)
 	writeCode(group.parent)->emit1i(OP_PUSHV, varIndex);
 	writeCode(group.parent)->emit(OP_EQ);
 	writeCode(group.parent)->emit1w(OP_INCI, varIndex);
-	int jumptto = (int)-(writeCode(group.parent)->getCurPos() - l2)-1;
+	int jumptto = (int)(/*(writeCode(group.parent)->getCurPos() /*- */l2/*+1)*/);
 	writeCode(group.parent)->emit1w(OP_JMZ, jumptto);
 	if(match(TK_ENDFOR, "EndFor")) fors--;
 

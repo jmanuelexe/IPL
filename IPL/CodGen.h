@@ -159,7 +159,7 @@ public:
 	void emit1f(OPCODE opcode, NUMBER num);
 	void emit1i(OPCODE opcode, int num);
 	void emit1i1f(OPCODE opcode, word parm1, NUMBER parm2);
-	void emit2i(OPCODE opcode, word parm1, word parm2);
+	void emit2w(OPCODE opcode, word parm1, word parm2);
 	void emit1w(OPCODE opcode, word num);
 	void emit1mb(OPCODE opcode, const char* str, const int size);
 	void EmitBWithPromt(OPCODE op);

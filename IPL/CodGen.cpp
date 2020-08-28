@@ -207,7 +207,7 @@ void CCodeGen::emit1i1f(OPCODE opcode, word parm1, NUMBER parm2)
 	emitN(parm2);
 }
 
-void CCodeGen::emit2i(OPCODE opcode, word parm1, word parm2)
+void CCodeGen::emit2w(OPCODE opcode, word parm1, word parm2)
 {
 #ifdef DEBUG
 	printf("%5d: %s\t %d, %d\n", offset, OPCODESTR(opcode), parm1, parm2);
