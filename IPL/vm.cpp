@@ -1,5 +1,4 @@
 #include "vm.h"
-#include <stdio.h>
 
 
 #ifdef WIN32
@@ -101,341 +100,6 @@ else INVALIDMATHOPERANDS\
 	else INVALIDMATHOPERANDS\
 }else INVALIDMATHOPERANDS
 
-/**********************************************************************************************
-			Array Class definition
-**********************************************************************************************/
-TStack::TStack()
-{
-	memset(data, 0, sizeof(data));
-	p = data;
-}
-
-void TStack::pushf(NUMBER num) {
-#ifdef DEBUG
-	printf("%2.2f ", num);
-#endif // DEBUG
-	p->as.f = num;
-	p->type = V_FLOAT;
-	p++;
-}
-
-//V_BYTE, V_WORD, V_INT
-void TStack::pushi(int val) {
-#ifdef DEBUG
-	printf("%-15d", val);
-#endif // DEBUG
-	p->as.i = val;
-	p->type = V_INT;
-	p++;
-}
-
-void TStack::pushb(bool val) {
-#ifdef DEBUG
-	printf((val) ? "true" : "false");
-#endif // DEBUG
-	p->as.b = val;
-	p->type = V_BOOL;
-	p++;
-}
-
-//index is theinde on the constant vextor where all the string reside
-void TStack::pushString(word index) {
-	p->as.i = index;
-	p->type = V_STRING;
-	/*if (p >= data + 100) {
-		printf("stack overflow");return;
-	}*/
-	p++;
-}
-
-void TStack::pushvar(TVariant var) {
-	if (p >= data + 100) {
-		printf("stack overflow");
-		return;
-	}
-	*p++ = var;
-}
-
-void TStack::pushFunc(word index) {
-	p->as.i = index;
-	p->type = V_FUNCT;
-	if (p >= data + 100) {
-		printf("stack overflow");
-		return;
-	}
-	p++;
-}
-
-TVariant* TStack::pop() {
-	if (p > data) return --p;
-	else {
-		printf("stack underflow");
-		return 0;
-	}
-}
-
-/**********************************************************************************************
-			Array Class definition
-**********************************************************************************************/
-//increase /decrease the count of object for array has(not the bytes)
-bool Array::resize(const int CountElements)
-{
-	TVariant* temp;
-	word size = CountElements * int(sizeof(TVariant));
-	temp = (TVariant*)realloc(vars, size);
-
-	if (temp) {
-		vars = temp;
-		this->count = CountElements;
-		return true;
-	}
-	return false;
-}
-
-void Array::dispose()
-{
-	if (vars)
-	{
-		free(vars);
-		vars = 0;
-	}
-}
-
-
-
-
-
-/**********************************************************************************************
-			CState Class definition
-**********************************************************************************************/
-void CState::init()
-{
-	TString name;
-
-	m_error = 0;
-	global = 0;
-
-	name = makeString("Main");
-	int index = createSymbol(0, name, V_FUNCT, NULL);
-
-	if(index != NOFOUND)
-		global = functions[index];
-}
-
-CState::~CState()
-{
-	destroy();
-}
-
-void CState::destroy()
-{
-	unsigned n;
-
-	for (n = 0; n < objects.size(); n++)
-	{
-		//objects[n]->dispose();
-		delete objects[n];
-	}
-
-	for (n = 0; n < functions.size(); n++) 
-	{
-		functions[n]->dispose();
-		delete functions[n];
-	}
-
-	for (n = 0; n < constants.size(); n++)
-	{
-		if (constants[n].type == V_STRING) {
-			delete[] constants[n].as.s;
-		}
-	}
-	
-	for (n = 0; n < arrays.size(); n++) 
-	{
-		arrays[n].dispose();
-	}
-
-	//remove resources
-	arrays.clear();
-	objects.clear();
-	functions.clear();
-	constants.clear();
-
-}
-
-int CState::isError()
-{
-
-	return	m_error;
-}
-
-//find symbol in the scope or deeper if not found on the active scope
-int CState::findSymbol(const TFunction* fun, const TString& name, bool& local) const
-{
-	int index = -1;
-	const TFunction* pCurFun = fun;
-	static int stepback = 0;
-	int i = 0;
-	local = true;
-	index = pCurFun->findVars(name);
-	return index;
-	/*
-	while (index < 0 && pCurFun)
-	{
-		index = pCurFun->findVars(name);
-		if (index != NOFOUND)
-		{
-			return index;
-		}else {
-			local = false;
-			pCurFun = pCurFun->parent;
-		}
-	}
-	*/
-	return NOFOUND;
-}
-
-// Creates a variable in the "parent" or create function(C or native)
-// add it to the "parent" function scope if parent = null
-int CState::createSymbol(TFunction* parent, const TString& name, const VarType type, c_fun data)
-{
-	int index = NONE;
-	TDes des;
-	TVariant var;
-
-	des.name.begin  = name.begin;
-	des.name.end	= name.end;
-	des.name.length = name.length;
-
-	switch (type)
-	{
-	case V_CFUNCT:
-	case V_FUNCT:
-	{
-		des.type = type;
-		TFunction* o = new TFunction(type, data);
-		o->des = des;		
-
-		functions.push_back(o);
-		index = (int)(functions.size() - 1);
-
-		if (parent) {
-			o->parent = parent;
-			index = (int)functions.size() - 1;
-			parent->localFunIndex.push_back(index);
-		}
-		
-#ifdef DEBUG
-		printf("Function '%.*s' added.\n", name.length, name.begin);
-#endif // DEBUG
-	}
-	break;
-	case V_ARRAY:
-	case V_VAR:
-		des.type = V_NULL;// V_INT;
-			parent->vars.push_back(des);
-			index = (int)parent->vars.size() - 1;
-#ifdef DEBUG
-			printf("Var '%.*s'index(%d) added in function %.*s.\n", name.length, name.begin, index,
-				parent->des.name.length, parent->des.name.begin);
-#endif // DEBUG
-		
-		break;
-	}
-
-	return index;
-}
-
-void CState::deleteVal(TVariant *val)
-{
-	switch (val->type) {
-	case V_ARRAY:
-		printf("\nDeleting array");
-		val->type = V_NULL;
-		if (val->as.array)
-		{
-			delete val->as.array;
-			val->as.array = 0;
-		}
-	default: break;
-	}
-}
-
-/*********************************************************************************
-*
-*
-***********************************************************************************/
-
-//search a function in this Object if not found it will reurn NOFOUND
-int TObjectDef::findFunction(CState* state, const TString* s)
-{
-	for (int v = 0; v < (int)localFunIndex.size(); v++) 
-	{
-		if (strEq(&state->functions[localFunIndex[v]]->des.name, s)) 
-			return localFunIndex[v];
-	}
-	return NOFOUND;
-}
-
-/***********************************************************************************
-*
-************************************************************************************/
-
-TFunction::TFunction(VarType type, c_fun data)
-{
-	if (type == V_FUNCT)
-		pfun.bytecode = new CCodeGen();
-	else 
-		pfun.cfun = data;
-
-	des.type = V_NULL;
-	parent = 0;
-	param = 0;
-}
-
-//dispose its oject
-void TFunction::dispose() 
-{
-	if (des.type == V_FUNCT) 
-	{
-		if (pfun.bytecode) 
-		{
-			delete pfun.bytecode;
-			pfun.bytecode = 0;
-		}
-	}
-}
-
-//find a function in this Object if not found it will check on its parent and up until it reaches the Main (root) object reurn NOFOUND
-int TObjectDef::findFunctionRecursive(CState* state, const TString* name)
-{
-	TObjectDef* pCurFun = this;
-	int fIndex = NONE;
-
-	while (fIndex == NONE && pCurFun)
-	{
-		fIndex = pCurFun->findFunction(state, name);
-		if (fIndex != NONE)
-			return fIndex;
-		else {
-			pCurFun = pCurFun->parent;
-		}
-	}
-
-	return fIndex;
-}
-
-//finds a variable in this class
-int TFunction::findVars(const TString& t) const
-{
-	for (int index = 0; index < (int)vars.size(); index++) 
-	{
-		if (strEq(&vars[index].name, &t))
-			return index;
-	}
-	return NOFOUND;
-}
-
 /*********************************************************************************
 		Virtual machine definition
 
@@ -445,31 +109,6 @@ CVM::~CVM()
 	
 }
 
-//print a variant
-void CVM::printval(CState *state, TVariant *x)
-{
-	switch (x->type)
-	{
-	case V_NULL: printf("null"); break;
-	case V_FUNCT: 
-		//printf("%.*s()", state->framestack.stack[x->as.i].des.name.length, state->framestack.stack[x->as.i].des.name.begin); break;
-	case V_ARRAY:
-		printf("{");
-		for (word i = 0; i < x->as.array->count-1; i++){
-			printval(state, &x->as.array->vars[i]);
-			printf(",");
-		}
-		printval(state, &x->as.array->vars[x->as.array->count - 1]);
-		printf("}\n");
-		break;
-	case V_VAR	: printf("%f", state->framestack.stack[x->as.i].as.f); break;
-	case V_FLOAT: printf("%2.2f", x->as.f); break;
-	case V_BOOL	: printf((x->as.b) ? "true" : "false"); break;
-	case V_INT: printf("%d", x->as.i); break;
-	case V_STRING: 
-		printf("%.*s", state->constants.at(x->as.i).as.s[0], state->constants.at(x->as.i).as.s+1); break;
-	}
-}
 
 NUMBER CVM::doPower(NUMBER a, NUMBER b)
 {
@@ -481,7 +120,7 @@ NUMBER CVM::doPower(NUMBER a, NUMBER b)
 	return r;
 }
 
-void CVM::storeA(CState * state, TFunction* fun, int varindex)
+void CVM::storeA(CState * state, Function* fun, int varindex)
 {
 	TVariant *var = &state->framestack.sp[varindex];
 	TVariant* val = stack.pop();
@@ -489,10 +128,10 @@ void CVM::storeA(CState * state, TFunction* fun, int varindex)
 
 	if(var->type != V_ARRAY) 
 	{
-		state->arrays.emplace_back();
+		state->arrayReg.emplace_back();
 		state->deleteVal(var);
 		var->type = V_ARRAY;
-		var->as.array = &state->arrays.back();
+		var->as.array = &state->arrayReg.back();
 		var->as.array->ref++;
 	}
 
@@ -518,7 +157,7 @@ void CVM::assing(CState* state, TVariant* source, TVariant *destination)
 	destination->as = source->as;
 }
 
-void CVM::store(CState * state, TFunction *fun, int index, bool local)
+void CVM::store(CState * state, Function *fun, int index, bool local)
 {
 	TVariant *source, *destination;
 
@@ -536,13 +175,13 @@ void CVM::store(CState * state, TFunction *fun, int index, bool local)
 #define SHOWSTACK \
 printf("[ "); TVariant *x;\
 for (x = stack.data; x < stack.p-1; x++){ \
-	printval(state, x); printf(", ");\
-}	if(stack.data!=stack.p) printval(state, x); printf(" ]\n"); 
+	state->printval(x); printf(", ");\
+}	if(stack.data!=stack.p) state->printval(x); printf(" ]\n"); 
 
 #define PUSHLVAR(index) printStr(&fun->vars[index].name); printf("%-14s"," ");
 			//printval(state, &state->framestack.sp[index]);
 
-void CVM::_run(CState *state, TFunction* fun)
+void CVM::_run(CState *state, Function* fun)
 {
 	word funIndex, count;
 	char* ip = fun->pfun.bytecode->get();
@@ -567,7 +206,7 @@ void CVM::_run(CState *state, TFunction* fun)
 
 	if (state->isError()) return;
 #ifdef DEBUG
-	printf("\nAddress           OPCODE     Operand        Stack\n");
+	printf("\nAddress   OPCODE     Operand        Stack\n");
 #endif
 	while (*ip != OP_HALT && state->getError()< ERRORS)
 	{
@@ -588,7 +227,7 @@ void CVM::_run(CState *state, TFunction* fun)
 #ifdef DEBUG
 			printStr(&fun->vars[index].name);
 			//printf("=%d %-11s", state->framestack.sp[index].as.i, " ");
-			printval(state, a);
+			state->printval(a);
 #endif
 		}
 		break;
@@ -746,8 +385,8 @@ void CVM::_run(CState *state, TFunction* fun)
 		case OP_EQ:
 			POP_OPERANDS_THEN
 			if (a->type == V_STRING && b->type == V_STRING) 
-				stack.pushb( strcmp(state->constants.at(a->as.i).as.s,
-					state->constants.at(b->as.i).as.s)==0);
+				stack.pushb( strcmp(state->constReg.at(a->as.i).as.s,
+					state->constReg.at(b->as.i).as.s)==0);
 			else {
 				if (a->type == V_FLOAT) {
 					if (b->type == V_INT) stack.pushb(a->as.f==b->as.i);
@@ -782,20 +421,20 @@ void CVM::_run(CState *state, TFunction* fun)
 			funIndex = READ_WORD(ip);	// function index
 			count	 = READ_WORD(ip);	// Count of parameter
 #ifdef DEBUG
-			printStr(&state->functions[funIndex]->des.name);
+			printStr(&state->funReg[funIndex]->des.name);
 #endif
 			//call normal function
-			if (state->functions[funIndex]->des.type == V_FUNCT)
+			if (state->funReg[funIndex]->des.type == V_FUNCT)
 			{
-				TFunction* pFun = state->functions[funIndex];
+				Function* pFun = state->funReg[funIndex];
 				_run(state, pFun);
 				//restore sp
 				if (state->framestack.stack.size()) {
 					state->framestack.sp = &state->framestack.stack.at(prevSStackSize);
 				}
 			}//call a C function
-			else if (state->functions[funIndex]->des.type == V_CFUNCT) {
-				state->functions[funIndex]->pfun.cfun(state, &stack, count);
+			else if (state->funReg[funIndex]->des.type == V_CFUNCT) {
+				state->funReg[funIndex]->pfun.cfun(state, &stack, count);
 #ifdef DEBUG
 				printf("%-6s"," ");
 #endif

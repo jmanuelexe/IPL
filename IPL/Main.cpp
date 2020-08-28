@@ -4,7 +4,7 @@
 #include "main.h"
 #include "Parser.h"
 
-void print(CState *state, TStack *stack, const unsigned param)
+void print(CState *state, Stack *stack, const unsigned param)
 {
 	TVariant* a;
 
@@ -12,12 +12,12 @@ void print(CState *state, TStack *stack, const unsigned param)
 	for (unsigned n = 0; n < param-1; n++)
 	{
 		a = stack->pop();
-		CVM::printval(state, a);
+		state->printval(a);
 		printf(", ");
 	}
 
 	a = stack->pop();
-	CVM::printval(state, a);
+	state->printval(a);
 	printf(") ");
 }
 
@@ -29,13 +29,12 @@ int _tmain(int argc, _TCHAR* argv[])
 	
 	//if (v >= 1 && v <= 2)
 	const char* s = R"(
-function foo(v)
+function add(a, b)
 	{
-		print(v);
+		return a+b;
 	}
-	v[0] = 10;
-	v[1] = 20;
-	foo(v);
+	
+	print(add(5,7));
 )";
 
 	CState state;
@@ -44,10 +43,7 @@ function foo(v)
 	
 	state.init();
 
-	TString strPrint;
-	
-	strPrint = makeString("print");
-	state.createSymbol(state.global, strPrint, V_CFUNCT, print);
+	state.addCFunction("print", print);
 	
 //#define TYPED
 #ifdef  TYPED

@@ -24,26 +24,6 @@ typedef float NUMBER;
 #define NOFOUND -1000000
 #define NONE	-1000001
 
-//errors
-#define ERROR_NONE						0
-#define ERROR_MISSING_OPERATOR			300
-#define ERROR_MISSING_CLOSE_PARENTHESIS	301
-#define ERROR_MISSING_CLOSE_BRACKET		302
-#define ERROR_MISSING_SEMICOLON			303
-#define ERROR_NUMER_EXPECTED			304
-#define ERROR_INVALID_STRING			305
-#define ERROR_INVALID_INDENTFIER		306
-#define ERROR_MISSING_END				307
-#define ERROR_MISSING_FUNCTIONNAME		308
-#define ERROR_MISSING_BEGIN				309
-#define ERROR_MISSING_THEM				310
-#define ERROR_MISSING_CONDITION			311
-#define ERROR_MISSING_COLON				312
-#define ERROR_MISSING_BREAK				313
-#define ERROR_MISSING_SWITCH			314
-#define ERROR_MISSING_STATEMENT			315
-#define ERROR_SPECTED_VAR				316
-#define ERROR_MISSING_LABEL				317
 
 //runtime error
 #define ERRORS							99
@@ -65,3 +45,80 @@ static const char* GETERROR(int code)
 	}
 	return "";
 }
+
+
+typedef struct TString {
+	const char* begin, * end;		//store the text found in the sourse
+	int  length;			//lenth
+}TString;
+
+int strEq(const TString* str1, const TString* str2);
+void printStr(const TString* text);
+TString makeString(const char* strz);
+
+//the type of variable
+typedef enum : unsigned char
+{
+	//value type
+	V_NULL,		//0
+	V_struct,	//1
+	V_FLOAT,	//2
+	V_BOOL,		//4
+	V_INT,		//8
+	V_STRING,	//16
+
+	//object type
+	V_CONST,	//32
+	V_VAR,		//64
+	V_PTR,		//128
+	V_ARRAY,	//256
+	V_FUNCT,	//512
+	V_CFUNCT,	//1024
+	V_CLASS
+}VarType;
+
+//store constant
+struct TData {
+	byte ref;	//reference counting
+	char* p;	//a pointer to the data
+	byte size;	//size of bytes
+};
+
+//Descriction of a variable
+struct TDes
+{
+	word len;	//size for str or array
+	VarType type;	//type of vatiable see above
+	TString name;	//ID that points to the name of the variable to avoid repetition
+};
+
+class Array;
+struct Function;
+
+typedef union TValue
+{
+	NUMBER f;						//floating number
+	int i;							//integer
+	TData* pData;					//pointer to data
+	bool b;							//boolean value
+	Array* array;					//experimental for array
+	char* s;
+	Function* fun;
+}TValue;
+
+//the representation of a variable
+typedef struct TVariant
+{
+public:
+	TValue as;
+	VarType type;	//type of vatiable see above
+	TVariant() {
+		as.i = 0;
+		type = V_NULL;
+	}
+
+	TVariant(TValue val, VarType t)
+	{
+		as = val; type = t;
+	}
+}TVariant;
