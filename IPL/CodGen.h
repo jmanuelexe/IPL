@@ -7,11 +7,6 @@ enum OPCODE
 {
 	OP_HALT=-1,	//stop the program
 	OP_EXIT,	//exit a function
-	OP_PUSHC,	//stack = Constant
-	OP_PUSHC0,	//stack = 0
-	OP_PUSHC1,	//stack = 1
-	OP_PUSHC2,	//stack = 2
-	OP_PUSHC3,	//stack = 3
 	OP_PUSHV,	//stack = local var[n]
 	OP_PUSHV0,	//stack = local var[0]
 	OP_PUSHV1,	//stack = local var[1]
@@ -81,7 +76,6 @@ static const char* OPCODESTR(int code)
 		ADD_OPCODE(OP_PUSH4);
 		ADD_OPCODE(OP_PUSH5);
 		ADD_OPCODE(OP_PUSHS);
-		ADD_OPCODE(OP_PUSHC);
 		ADD_OPCODE(OP_PUSHV0);
 		ADD_OPCODE(OP_PUSHV1);
 		ADD_OPCODE(OP_PUSHV2);
@@ -112,10 +106,6 @@ static const char* OPCODESTR(int code)
 		ADD_OPCODE(OP_INCF);
 		ADD_OPCODE(OP_DECI);
 		ADD_OPCODE(OP_DECF);
-		ADD_OPCODE(OP_PUSHC0);
-		ADD_OPCODE(OP_PUSHC1);
-		ADD_OPCODE(OP_PUSHC2);
-		ADD_OPCODE(OP_PUSHC3);
 		ADD_OPCODE(OP_STOREVA);
 		ADD_OPCODE(OP_STOREV);
 		ADD_OPCODE(OP_STOREV0);

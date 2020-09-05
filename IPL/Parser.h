@@ -21,17 +21,20 @@ struct TMeta
 };
 
 //helping struct that permit to have breaks or continues
-struct TGroup
+class TGroup
 {
-	Function *parent;
-public:
-	TGroup(Function* parent) {
-		this->parent = parent;
-	}
+	friend class CParser;
 	std::vector<TScoupVarInfo> vars;
 	std::vector<short> continues;	//labels to all continues in a function
 	std::vector<short> breaks;		//labels to all returns of a function
 	//std::vector<short> returns;	//labels to all returns of a function
+	Function *fun;
+	TGroup* parent;
+public:
+	TGroup(TGroup* Parent, Function* fun) {
+		this->fun = fun;
+		this->parent = Parent;
+	}
 	int findVar(const TString &varName, bool &outLocal);
 	int addVar(const TString& varName, VarType type, int index);
 };
@@ -46,14 +49,11 @@ public:
 	~CParser();
 	void parseClassDef				(TGroup& group);
 	void parseFunctionCall			(TGroup& group, Token &FunName);
-	unsigned parseAssignment		(TGroup& group, unsigned token);
+	void parseAssignment		(TGroup& group, unsigned token);
 	int createVarIfnotExist			(TGroup& group, TString& varName, VarType v, bool& outLocal);
 	void parseExpresionOrFuncCall	(TGroup& group);
 	void parseFunctionDeclaration		(TGroup& group);
-	bool emitCommoNumber			(Function* fun, int number);
-	void emitInteger				(Function* fun, int number);
 	int addConstant					(Token& token);
-	void emitFloat					(Function* fun,float number);
 	int parseParamList				(TGroup& group);
 	int storeParamlist				(TGroup& group);
 	void parseFactor				(TGroup& group);

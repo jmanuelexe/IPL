@@ -10,15 +10,16 @@ double get_time();
 
 class CVM
 {
-public:
 	Stack stack;		//for stack operation
+public:
 	~CVM();
-	NUMBER doPower(NUMBER a, NUMBER b);
 	void run(CState* state);
+private:
 	void storeA(CState* state, Function* fun, const int varIndex);
 	void assing(CState* state, TVariant* source, TVariant* destination);
-	void store(CState* state, Function* fun, int index, bool local);
+	void store(CState* state, Function* fun, int index, bool local);	NUMBER doPower(NUMBER a, NUMBER b);
 	void _run(CState* state, Function* fun);
+	void printval(CState* state, TVariant* x);
 };
 
 #endif

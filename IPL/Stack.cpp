@@ -4,16 +4,16 @@
 Stack::Stack()
 {
 	memset(data, 0, sizeof(data));
-	p = data;
+	sp = top = data;
 }
 
 void Stack::pushf(NUMBER num) {
 #ifdef DEBUG
 	printf("%2.2f ", num);
 #endif // DEBUG
-	p->as.f = num;
-	p->type = V_FLOAT;
-	p++;
+	top->as.f = num;
+	top->type = V_FLOAT;
+	top++;
 }
 
 //V_BYTE, V_WORD, V_INT
@@ -21,50 +21,50 @@ void Stack::pushi(int val) {
 #ifdef DEBUG
 	printf("%-15d", val);
 #endif // DEBUG
-	p->as.i = val;
-	p->type = V_INT;
-	p++;
+	top->as.i = val;
+	top->type = V_INT;
+	top++;
 }
 
 void Stack::pushb(bool val) {
 #ifdef DEBUG
 	printf((val) ? "true" : "false");
 #endif // DEBUG
-	p->as.b = val;
-	p->type = V_BOOL;
-	p++;
+	top->as.b = val;
+	top->type = V_BOOL;
+	top++;
 }
 
 //index is theinde on the constant vextor where all the string reside
 void Stack::pushString(word index) {
-	p->as.i = index;
-	p->type = V_STRING;
+	top->as.i = index;
+	top->type = V_STRING;
 	/*if (p >= data + 100) {
 		printf("stack overflow");return;
 	}*/
-	p++;
+	top++;
 }
 
 void Stack::pushvar(TVariant var) {
-	if (p >= data + 100) {
+	if (top >= data + 100) {
 		printf("stack overflow");
 		return;
 	}
-	*p++ = var;
+	*top++ = var;
 }
 
 void Stack::pushFunc(word index) {
-	p->as.i = index;
-	p->type = V_FUNCT;
-	if (p >= data + 100) {
+	top->as.i = index;
+	top->type = V_FUNCT;
+	if (top >= data + 100) {
 		printf("stack overflow");
 		return;
 	}
-	p++;
+	top++;
 }
 
 TVariant* Stack::pop() {
-	if (p > data) return --p;
+	if (top > data) return --top;
 	else {
 		printf("stack underflow");
 		return 0;

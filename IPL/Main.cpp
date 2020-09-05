@@ -8,35 +8,45 @@ void print(CState *state, Stack *stack, const unsigned param)
 {
 	TVariant* a;
 
-	printf("(");
-	for (unsigned n = 0; n < param-1; n++)
+	printf(" \"");
+	for (unsigned n = 0; n < param; n++)
 	{
 		a = stack->pop();
-		state->printval(a);
-		printf(", ");
+		//state->printval(state, a);
+		switch (a->type)
+		{
+		case V_VAR: printf("v_var"); break;
+		case V_INT: printf("%d", a->as.i); break;
+		case V_FLOAT: printf("%f", a->as.f); break;
+		}
+		if(n<param-1) printf(", ");
 	}
 
-	a = stack->pop();
-	state->printval(a);
-	printf(") ");
+	printf("\"");
 }
 
 
+#ifdef TYPED
+#include <string>
+#include <iostream>
+#endif
 int _tmain(int argc, _TCHAR* argv[])
 {
 	_CrtSetDbgFlag(_CRTDBG_CHECK_ALWAYS_DF | _CRTDBG_LEAK_CHECK_DF | 
 		_CRTDBG_DELAY_FREE_MEM_DF | _CRTDBG_ALLOC_MEM_DF);
 	
-	//if (v >= 1 && v <= 2)
 	const char* s = R"(
-function add(a, b)
-	{
-		return a+b;
-	}
+fun power(a, b)
+{
+	r=1;
+	for c=1 to b
+		r = r * a;
+	endfor;
+	return r;
+}
 	
-	print(add(5,7));
+	print(power(2,5));
 )";
-
 	CState state;
 	CParser parser(&state);
 	CVM vm;
@@ -56,7 +66,7 @@ function add(a, b)
 	{
 #endif
 		printf("\nExecuting code");
-		printf("\n======================================================\n");
+		printf("\n======================================================");
 		vm.run(&state);
 	}
 

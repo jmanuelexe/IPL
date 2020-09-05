@@ -19,10 +19,11 @@ struct CState
 	friend class CParser;
 	friend class TObjectDef;
 private:
+	//Stack stack;						//for stack operation
 	int	m_error;						//store error (parsing, compiling)
 	FucList funReg;						//Function Registry
 	ArrayList arrayReg;					//Array Registry
-	VarsReg framestack;					//frame stack locals variables
+	//VarsReg framestack;					//frame stack locals variables
 	VarList constReg;					//constant Registry(so far String)
 	Function *global;					//Native function
 public:
@@ -36,7 +37,6 @@ public:
 	}
 	int getError() { return m_error; }
 	void deleteVal(TVariant* val);
-	void printval(TVariant* x);
 	int isError();
 	int findSymbol(const Function* fun, const TString& name, bool& local) const;
 };

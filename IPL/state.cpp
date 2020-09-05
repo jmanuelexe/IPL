@@ -156,28 +156,3 @@ void CState::deleteVal(TVariant* val)
 	default: break;
 	}
 }
-
-//print a variant
-void CState::printval(TVariant* x)
-{
-	switch (x->type)
-	{
-	case V_NULL: printf("null"); break;
-	case V_FUNCT:
-		//printf("%.*s()", state->framestack.stack[x->as.i].des.name.length, state->framestack.stack[x->as.i].des.name.begin); break;
-	case V_ARRAY:
-		printf("{");
-		for (word i = 0; i < x->as.array->count - 1; i++) {
-			printval(&x->as.array->vars[i]);
-			printf(",");
-		}
-		printval(&x->as.array->vars[x->as.array->count - 1]);
-		printf("}");
-		break;
-	case V_VAR: printf("%f", framestack.stack[x->as.i].as.f); break;
-	case V_FLOAT: printf("%2.2f", x->as.f); break;
-	case V_BOOL: printf((x->as.b) ? "true" : "false"); break;
-	case V_INT: printf("%d", x->as.i); break;
-	case V_STRING: printf("%.*s", constReg.at(x->as.i).as.s[0], constReg.at(x->as.i).as.s + 1); break;
-	}
-}

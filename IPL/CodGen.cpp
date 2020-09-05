@@ -171,13 +171,6 @@ void CCodeGen::emit1i(OPCODE opcode, int num)
 		case 1: EmitBWithPromt(OP_STOREV1); return;
 		case 2: EmitBWithPromt(OP_STOREV2); return;
 		}break;
-	case OP_PUSHC: 
-		switch (num) {
-		case 0: EmitBWithPromt(OP_PUSHC0); return;
-		case 1: EmitBWithPromt(OP_PUSHC1); return;
-		case 2: EmitBWithPromt(OP_PUSHC2); return;
-		}
-		break;
 	case OP_PUSHV:
 		switch (num) {
 		case 0: EmitBWithPromt(OP_PUSHV0); return;

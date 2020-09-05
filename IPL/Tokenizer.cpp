@@ -9,6 +9,7 @@ Reserved row2[] = {		//reserved words with lenth of two characters
 	0
 };
 Reserved row3[] = {	//reserved words with lenth of three characters
+	{ "fun", TK_FUNCTION },
 	{ "for", TK_FOR },
 	{ "end", TK_END },
 	{ "not", TK_NOT },
@@ -42,7 +43,6 @@ Reserved row6[] = {
 };
 Reserved row8[] = {
 	{ "continue", TK_CONTINUE },
-	{ "function", TK_FUNCTION },
 	{ "endwhile", TK_ENDWHILE },
 	{ 0 }
 };

@@ -50,11 +50,35 @@ void printStr(const TString* text)
 	printf("%.*s", text->length, text->begin);
 }
 
+//print a variant
+void CVM::printval(CState *state, TVariant* x)
+{
+	switch (x->type)
+	{
+	case V_NULL: printf("null"); break;
+	case V_FUNCT:
+		//printf("%.*s()", state->framestack.stack[x->as.i].des.name.length, state->framestack.stack[x->as.i].des.name.begin); break;
+	case V_ARRAY:
+		printf("{");
+		for (word i = 0; i < x->as.array->count - 1; i++) {
+			printval(state, &x->as.array->vars[i]);
+			printf(",");
+		}
+		printval(state, &x->as.array->vars[x->as.array->count - 1]);
+		printf("}");
+		break;
+	case V_VAR: printf("%f", stack.sp[x->as.i].as.f); break;
+	case V_FLOAT: printf("%2.2f", x->as.f); break;
+	case V_BOOL: printf((x->as.b) ? "true" : "false"); break;
+	case V_INT: printf("%d", x->as.i); break;
+	case V_STRING: printf("%.*s", state->constReg.at(x->as.i).as.s[0], state->constReg.at(x->as.i).as.s + 1); break;
+	}
+}
 //***************************************************************************
 //
 //
 //***************************************************************************
-#define POP_OPERANDS_THEN b = stack.pop(); a = stack.pop();
+#define POP_A_AND_B_THEN b = stack.pop(); a = stack.pop();
 #define INVALIDMATHOPERANDS {state->setError(INVALID_OPERATOR);stack.pushb(0);}
 #define STR_CONCAT_THEN if (a->type == V_STRING) {char s[80];\
 if (b->type == V_STRING) {\
@@ -122,8 +146,8 @@ NUMBER CVM::doPower(NUMBER a, NUMBER b)
 
 void CVM::storeA(CState * state, Function* fun, int varindex)
 {
-	TVariant *var = &state->framestack.sp[varindex];
-	TVariant* val = stack.pop();
+	TVariant *var  = &stack.sp[varindex];
+	TVariant* val  = stack.pop();
 	int arrayIndex = stack.pop()->as.i;
 
 	if(var->type != V_ARRAY) 
@@ -164,48 +188,38 @@ void CVM::store(CState * state, Function *fun, int index, bool local)
 	//We pop the value off the stack and then we mus delete if it reserved memory(so far only array)
 	//then we copy it destination on the frame stack
 	source = stack.pop();
-	destination = &state->framestack.sp[index];
+	destination = &stack.sp[index];
 	assing(state, source, destination);
 
 #ifdef DEBUG
-	printf("%-15.*s", fun->vars[index].name.length, fun->vars[index].name.begin);
+	printf("%.*s=", fun->vars[index].name.length, fun->vars[index].name.begin);
+	printval(state, source);
+	printf("\t");
 #endif
 }
 
 #define SHOWSTACK \
 printf("[ "); TVariant *x;\
-for (x = stack.data; x < stack.p-1; x++){ \
-	state->printval(x); printf(", ");\
-}	if(stack.data!=stack.p) state->printval(x); printf(" ]\n"); 
+for (x = stack.data; x < stack.top-1; x++){ \
+	printval(state, x); printf(", ");\
+}	if(stack.data!=stack.top) printval(state, x); printf(" ]\n"); 
 
-#define PUSHLVAR(index) printStr(&fun->vars[index].name); printf("%-14s"," ");
-			//printval(state, &state->framestack.sp[index]);
+#define PUSHLVAR(index) printStr(&fun->vars[index].name); printf("%-14s"," ");\
+			stack.pushvar(stack.sp[5]);
+			//printval(state, &stack.sp[index]);
 
 void CVM::_run(CState *state, Function* fun)
 {
-	word funIndex, count;
+	word count, index;
 	char* ip = fun->pfun.bytecode->get();
 	char* cp = ip;
-	TVariant *b, *a;
+	TVariant *b, *a, *prvSP = stack.sp;
 	OPCODE opcode;
-
-	int index;
-	int prevSStackSize = (int)state->framestack.stack.size();// current frame end
-	int varcount = (int)fun->vars.size();
-	int newFrameStackSize = prevSStackSize + varcount;
-
-	if (state->framestack.stack.size() != newFrameStackSize) {
-#ifdef DEBUG
-		printf("\nChanging frame stack from %d to %d\n", (int)state->framestack.stack.size(), newFrameStackSize);
-#endif
-		state->framestack.stack.resize(newFrameStackSize);
-	}
-	
-	if(state->framestack.stack.size() && varcount>0)
-		state->framestack.sp = &state->framestack.stack.at(prevSStackSize);
+	stack.sp += fun->vars.size();
 
 	if (state->isError()) return;
 #ifdef DEBUG
+	printf("\n\nRunning function %.*s", fun->des.name.length, fun->des.name.begin);
 	printf("\nAddress   OPCODE     Operand        Stack\n");
 #endif
 	while (*ip != OP_HALT && state->getError()< ERRORS)
@@ -220,52 +234,52 @@ void CVM::_run(CState *state, Function* fun)
 		case OP_SETS:
 		{
 			index = READ_WORD(ip);
-			a = &state->framestack.sp[index];
+			a = &stack.sp[index];
 			state->deleteVal(a);
 			a->as.i = READ_WORD(ip);
 			a->type = V_STRING;
 #ifdef DEBUG
 			printStr(&fun->vars[index].name);
-			//printf("=%d %-11s", state->framestack.sp[index].as.i, " ");
-			state->printval(a);
+			//printf("=%d %-11s", stack.sp[index].as.i, " ");
+			printval(state, a);
 #endif
 		}
 		break;
 		case OP_SETI: 
 		{
 			index= READ_WORD(ip);
-			a = &state->framestack.sp[index];
+			a = &stack.sp[index];
 			state->deleteVal(a);
 			a->as.i = READ_WORD(ip);
 			a->type = V_INT;
 #ifdef DEBUG
 			printStr(&fun->vars[index].name); 
-			printf("=%d %-11s", state->framestack.sp[index].as.i, " ");
+			printf("=%d %-11s", stack.sp[index].as.i, " ");
 #endif
 		}
 			break;
 		case OP_SETF:
 		{
 			index = READ_WORD(ip);
-			a = &state->framestack.sp[index];
+			a = &stack.sp[index];
 			state->deleteVal(a);
 			a->as.f = READ_FLOAT(ip);
 			a->type = V_FLOAT;
 #ifdef DEBUG
 			printStr(&fun->vars[index].name); 
-			printf("=%f ", state->framestack.sp[index].as.f);
+			printf("=%f ", stack.sp[index].as.f);
 #endif
 		}break;
 		case OP_SETB:
 		{
 			index = READ_WORD(ip);
-			a = &state->framestack.sp[index];
+			a = &stack.sp[index];
 			state->deleteVal(a);
 			a->as.b = READ_BOOL(ip); ip ++;
 			a->type = V_BOOL;
 #ifdef DEBUG
 			printStr(&fun->vars[index].name);
-			printf("=%d ", state->framestack.sp[index].as.i);
+			printf("=%d ", stack.sp[index].as.i);
 #endif
 		}		break;
 		case OP_PUSHI: stack.pushi(AS_INT(ip));	ip += INT_SIZE;	break;
@@ -277,56 +291,14 @@ void CVM::_run(CState *state, Function* fun)
 		case OP_PUSH5: stack.pushi(5);break;
 		case OP_PUSHF: stack.pushf(AS_FLOAT(ip));	ip += FLOAT_SIZE;	break;
 		case OP_PUSHB: stack.pushb(AS_BOOL(ip));	ip++;		break;
-		case OP_PUSHC0: stack.pushi((int)0);	break;
-		case OP_PUSHC1: stack.pushi((int)1);	break;
-		case OP_PUSHC2: stack.pushi((int)2);	break;
-		case OP_PUSHC3: stack.pushi((int)3);	break;
-		case OP_PUSHS:
-			stack.pushString(AS_WORD(ip));//add the index of the string constant
-			ip += WORD_SIZE;	//the indextook to bytes now we must skip them
-			break;
-		case OP_PUSHV	:
-#ifdef DEBUG
-			PUSHLVAR(AS_INT(ip))
-#endif
-			stack.pushvar(state->framestack.sp[AS_INT(ip)] ); ip += INT_SIZE;
-			break;
-		case OP_PUSHV0:
-#ifdef DEBUG
-			PUSHLVAR(0)
-#endif
-			stack.pushvar(state->framestack.sp[0]);
-			break;
-		case OP_PUSHV1:
-#ifdef DEBUG
-			PUSHLVAR(1)
-#endif
-			stack.pushvar(state->framestack.sp[1]);
-			break;
-		case OP_PUSHV2:
-#ifdef DEBUG
-			PUSHLVAR(2)
-#endif
-			stack.pushvar(state->framestack.sp[2]);
-			break;
-		case OP_PUSHV3:
-#ifdef DEBUG
-			PUSHLVAR(3)
-#endif
-			stack.pushvar(state->framestack.sp[3]);
-			break;
-		case OP_PUSHV4:
-#ifdef DEBUG
-			PUSHLVAR(4)
-#endif
-			stack.pushvar(state->framestack.sp[4]);
-			break;
-		case OP_PUSHV5:
-#ifdef DEBUG
-			PUSHLVAR(5)
-#endif
-			stack.pushvar(state->framestack.sp[5]);
-			break;
+		case OP_PUSHV0  :stack.pushvar(stack.sp[0]);break;
+		case OP_PUSHV1	:stack.pushvar(stack.sp[1]);break;
+		case OP_PUSHV2	:stack.pushvar(stack.sp[2]);break;
+		case OP_PUSHV3	:stack.pushvar(stack.sp[3]);break;
+		case OP_PUSHV4	:stack.pushvar(stack.sp[4]);break;
+		case OP_PUSHV5	:stack.pushvar(stack.sp[5]); break;
+		case OP_PUSHV	:stack.pushvar(stack.sp[AS_WORD(ip)]); ip += WORD_SIZE;	break;
+		case OP_PUSHS	:stack.pushString(AS_WORD(ip)); ip += WORD_SIZE; break;//add the index of the string constant
 		case OP_PUSHVA	:
 			a = stack.pop();
 #ifdef DEBUG
@@ -334,32 +306,33 @@ void CVM::_run(CState *state, Function* fun)
 			sprintf(s,"[%d]", a->as.i);
 			printf("%-15s",s);
 #endif
-			stack.pushvar(state->framestack.sp[AS_WORD(ip)].as.array->vars[a->as.i]);
+			stack.pushvar(stack.sp[AS_WORD(ip)].as.array->vars[a->as.i]);
 			ip += WORD_SIZE;
 			break;
-		case OP_INCI: state->framestack.sp[AS_WORD(ip)].as.i++; ip += WORD_SIZE;break;
-		case OP_INCF: state->framestack.sp[AS_WORD(ip)].as.f++; ip += WORD_SIZE;break;
-		case OP_DECI: state->framestack.sp[AS_WORD(ip)].as.i--; ip += WORD_SIZE; break;
-		case OP_DECF: state->framestack.sp[AS_WORD(ip)].as.f--; ip += WORD_SIZE; break;
+		case OP_INCI: stack.sp[AS_WORD(ip)].as.i++; ip += WORD_SIZE;break;
+		case OP_INCF: stack.sp[AS_WORD(ip)].as.f++; ip += WORD_SIZE;break;
+		case OP_DECI: stack.sp[AS_WORD(ip)].as.i--; ip += WORD_SIZE; break;
+		case OP_DECF: stack.sp[AS_WORD(ip)].as.f--; ip += WORD_SIZE; break;
 		case OP_STOREVA:storeA(state, fun, AS_WORD(ip)); ip += WORD_SIZE;break;
 		case OP_STOREV1:store(state, fun, 1, true); break;
 		case OP_STOREV0:store(state, fun, 0, true); break;
 		case OP_STOREV2:store(state, fun, 2, true); break;
-		case OP_STOREV3:store(state, fun, 2, true); break;
-		case OP_STOREV4:store(state, fun, 2, true); break;
+		case OP_STOREV3:store(state, fun, 3, true); break;
+		case OP_STOREV4:store(state, fun, 4, true); break;
+		case OP_STOREV5:store(state, fun, 5, true); break;
 		case OP_STOREV :store(state, fun, AS_WORD(ip), true); ip += WORD_SIZE; break;
 		case OP_PLUS:
-			POP_OPERANDS_THEN
+			POP_A_AND_B_THEN
 			//STR_CONCAT_THEN
 			MATH_OP(a, +, b)
 			break;
 		case OP_POWER:
-			POP_OPERANDS_THEN
+			POP_A_AND_B_THEN
 			stack.pushf(doPower(b->as.f, a->as.f));
 			break;
-		case OP_MINUS:	POP_OPERANDS_THEN MATH_OP(a, -, b)	break;
-		case OP_MULT:	POP_OPERANDS_THEN MATH_OP(a, *, b)	break;
-		case OP_DIV:	POP_OPERANDS_THEN 
+		case OP_MINUS:	POP_A_AND_B_THEN MATH_OP(a, -, b)	break;
+		case OP_MULT:	POP_A_AND_B_THEN MATH_OP(a, *, b)	break;
+		case OP_DIV:	POP_A_AND_B_THEN 
 			if (b->type == V_FLOAT) {
 				if (b->as.f == 0.0f) { stack.pushf(0.0f); state->setError(DIVISION_BY_ZERO); }
 				else if (a->type == V_INT) stack.pushf(a->as.f / b->as.i); 
@@ -376,14 +349,14 @@ void CVM::_run(CState *state, Function* fun)
 			else INVALIDMATHOPERANDS
 
 			break;
-		case OP_GT:	POP_OPERANDS_THEN DO_LOGIC_OP(a, > , b)		break;
-		case OP_GE:	POP_OPERANDS_THEN DO_LOGIC_OP(a, >= , b)	break;
-		case OP_LT:	POP_OPERANDS_THEN DO_LOGIC_OP(a, < , b)		break;
-		case OP_LE:	POP_OPERANDS_THEN DO_LOGIC_OP(a, <= , b)	break;
-		case OP_AND:POP_OPERANDS_THEN DO_LOGIC_OP(a, &&, b)		break;
-		case OP_OR:	POP_OPERANDS_THEN DO_LOGIC_OP(a, || , b)	break;
+		case OP_GT:	POP_A_AND_B_THEN DO_LOGIC_OP(a, > , b)		break;
+		case OP_GE:	POP_A_AND_B_THEN DO_LOGIC_OP(a, >= , b)	break;
+		case OP_LT:	POP_A_AND_B_THEN DO_LOGIC_OP(a, < , b)		break;
+		case OP_LE:	POP_A_AND_B_THEN DO_LOGIC_OP(a, <= , b)	break;
+		case OP_AND:POP_A_AND_B_THEN DO_LOGIC_OP(a, &&, b)		break;
+		case OP_OR:	POP_A_AND_B_THEN DO_LOGIC_OP(a, || , b)	break;
 		case OP_EQ:
-			POP_OPERANDS_THEN
+			POP_A_AND_B_THEN
 			if (a->type == V_STRING && b->type == V_STRING) 
 				stack.pushb( strcmp(state->constReg.at(a->as.i).as.s,
 					state->constReg.at(b->as.i).as.s)==0);
@@ -418,23 +391,21 @@ void CVM::_run(CState *state, Function* fun)
 #endif
 			break;		
 		case OP_CALL:
-			funIndex = READ_WORD(ip);	// function index
+			index = READ_WORD(ip);	// function index
 			count	 = READ_WORD(ip);	// Count of parameter
 #ifdef DEBUG
-			printStr(&state->funReg[funIndex]->des.name);
+			printStr(&state->funReg[index]->des.name);
 #endif
 			//call normal function
-			if (state->funReg[funIndex]->des.type == V_FUNCT)
+			if (state->funReg[index]->des.type == V_FUNCT)
 			{
-				Function* pFun = state->funReg[funIndex];
+				Function* pFun = state->funReg[index];
 				_run(state, pFun);
 				//restore sp
-				if (state->framestack.stack.size()) {
-					state->framestack.sp = &state->framestack.stack.at(prevSStackSize);
-				}
+				stack.sp = prvSP;
 			}//call a C function
-			else if (state->funReg[funIndex]->des.type == V_CFUNCT) {
-				state->funReg[funIndex]->pfun.cfun(state, &stack, count);
+			else if (state->funReg[index]->des.type == V_CFUNCT) {
+				state->funReg[index]->pfun.cfun(state, &stack, count);
 #ifdef DEBUG
 				printf("%-6s"," ");
 #endif
@@ -466,5 +437,4 @@ void CVM::run(CState *state)
 	{
 		printf("Runtime error :%s\n", GETERROR(state->getError()));
 	}
-	state->framestack.stack.clear();
 }
