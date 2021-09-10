@@ -14,7 +14,7 @@ typedef enum TTOKEN :char
 	//logic operators
 	TK_NOT, TK_AND, TK_OR,
 	//arimethic operators
-	TK_ASSIGN, TK_PLUS, TK_MINUS, TK_MULT, TK_DIV, TK_POWER,
+	TK_ASSIGN, TK_PLUS, TK_MINUS, TK_MULT, TK_DIV, TK_POWER, TK_PERIOD,
 	//compare operator
 	TK_EQEQ, TK_INC, TK_DEC, TK_LT, TK_GT, TK_EQ, TK_DIF, TK_LE, TK_GE,
 	//grouping operator
@@ -65,6 +65,8 @@ public:
 	void init();
 	Tokenizer();
 	void setSource(const char *sourse);
+	void scan();
+private:
 	TTOKEN isKeyWord(const Token& toke) const;
 	void getNumber();
 	void getIdentifier();
@@ -73,7 +75,6 @@ public:
 	void next();
 	void skipUntil(const char *delimiter);
 	char nextChar();
-	void scan();
 	void newLine();
 };
 

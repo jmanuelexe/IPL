@@ -3,7 +3,7 @@
 #include "vm.h"
 #include "CodGen.h"
 
-#define writeCode(source) source->pfun.bytecode
+#define writeCode(source) source->bytecode
 
 struct TScoupVarInfo {
 	TDes des;
@@ -28,10 +28,10 @@ class TGroup
 	std::vector<short> continues;	//labels to all continues in a function
 	std::vector<short> breaks;		//labels to all returns of a function
 	//std::vector<short> returns;	//labels to all returns of a function
-	Function *fun;
+	TObjectDef *fun;
 	TGroup* parent;
 public:
-	TGroup(TGroup* Parent, Function* fun) {
+	TGroup(TGroup* Parent, TObjectDef* fun) {
 		this->fun = fun;
 		this->parent = Parent;
 	}
@@ -49,10 +49,11 @@ public:
 	~CParser();
 	void parseClassDef				(TGroup& group);
 	void parseFunctionCall			(TGroup& group, Token &FunName);
-	void parseAssignment		(TGroup& group, unsigned token);
+	void parseAssignment			(TGroup& group, unsigned token);
 	int createVarIfnotExist			(TGroup& group, TString& varName, VarType v, bool& outLocal);
 	void parseExpresionOrFuncCall	(TGroup& group);
-	void parseFunctionDeclaration		(TGroup& group);
+	void parseFunctionDeclaration	(TGroup& group);
+	unsigned parseFunctionDec(TGroup& group);
 	int addConstant					(Token& token);
 	int parseParamList				(TGroup& group);
 	int storeParamlist				(TGroup& group);

@@ -13,7 +13,7 @@ int TGroup::findVar(const TString& varName, bool& outLocal)
 			return index;	
 	}
 
-	return NOFOUND;
+	return NOTFOUND;
 }
 
 int TGroup::addVar(const TString& varName, VarType type, int index)
@@ -40,21 +40,21 @@ CParser::CParser(CState *State)
 	begins = ifs = whiles = fors = 0;
 }
 
-void CParser::parseFunctionDeclaration(TGroup& group)
+
+void CParser::parseClassDef(TGroup& group)
 {
 	tokenizer.scan();
-	tokenizer.curToken.type = TK_FUNCTION;
-	
+	tokenizer.curToken.type = TK_CLASS;
+
 	int fIndex = group.fun->findFunction(state, &tokenizer.curToken.text);
 
-	if (fIndex != NOFOUND) {
-		error(&tokenizer.curToken.text, "Function already defined");
+	if (fIndex != NOTFOUND) {
+		error(&tokenizer.curToken.text, "Class already defined");
 		return;
 	}
-	
-	fIndex = state->createSymbol(group.fun, tokenizer.curToken.text, V_FUNCT, 0);
-	
-	if (fIndex == NOFOUND) {
+
+	fIndex = state->createSymbol(group.fun, tokenizer.curToken.text, V_CLASS, 0);
+	if (fIndex == NOTFOUND) {
 		error(&tokenizer.curToken.text, "Unable to create.");
 		return;
 	}
@@ -62,25 +62,14 @@ void CParser::parseFunctionDeclaration(TGroup& group)
 	Function* fun = state->funReg[fIndex];
 
 	tokenizer.scan();
-	
+
 	TGroup thisFun(&group, fun);
-	storeParamlist(thisFun);
 	begins++;
 	match(TK_OPENCURLYBRACKET, "{");
 
 	parseBlock(thisFun);
 	match(TK_CLOSECURLYBRACKET, "}");
-
 	begins--;
-
-	//update returns to jump to the end of the function
-	for (unsigned n = 0; n < fun->returns.size(); n++)
-	{	
-		writeCode(fun)->endJump(fun->returns[n]);
-	}
-	
-	//restore last scope
-	if (!state->isError()) writeCode(fun)->emit(OP_EXIT);
 }
 
 void CParser::parseBreak(TGroup& group)
@@ -88,7 +77,7 @@ void CParser::parseBreak(TGroup& group)
 	tokenizer.scan();
 	if (!state->isError()) 
 	{
-		group.breaks.push_back((short)writeCode(group.fun)->beginjump(OP_JMP));
+		group.breaks.push_back((short)writeCode(group.fun).beginjump(OP_JMP));
 	}
 }
 
@@ -133,29 +122,35 @@ int CParser::storeParamlist(TGroup& group)
 	{
 		word index = state->createSymbol(group.fun, tokens[i].text, V_VAR, 0);
 		group.addVar(tokens[i].text, V_VAR, index);
-		writeCode(group.fun)->emit1i(OP_STOREV, index);
+		writeCode(group.fun).emit1i(OP_STOREV, index);
 	}
 #pragma push_macro("disable anoint size_t to in warning")
 #pragma warning(disable : 4267)
-	group.fun->param = int(tokens.size());
+	((Function*)group.fun)->param = int(tokens.size());
 #pragma pop_macro("disable anoint size_t to in warning")
 	return (int)tokens.size();
 }
 
 void CParser::parseFunctionCall(TGroup& group, Token &FunName)
 {
-	FunName.type = TK_FUNCTION;
-
-	int fIndex = group.fun->findFunction(state, &FunName.text);
-	//check if it was global
-	if (fIndex== NOFOUND) 
-	{
-		fIndex = state->global->findFunction(state, &FunName.text);
+	bool local;
+	int fIndex, numparam;
+	
+	//FunName.type = TK_FUNCTION;
+	//fIndex = group.fun->findFunction(state, &FunName.text);
+	fIndex = state->global->findFunctionRecursive(state, &FunName.text);
+	if (fIndex == NOTFOUND) {
+		fIndex = group.findVar(FunName.text, local);
+		if (fIndex != NOTFOUND) {
+			numparam = parseParamList(group);
+			writeCode(group.fun).emit2w(OP_ICALL, fIndex, numparam);
+			return;
+		}
 	}
 
-	if (fIndex!=NOFOUND)
+	if (fIndex!=NOTFOUND)
 	{
-		int numparam = parseParamList(group);
+		numparam = parseParamList(group);
 		Function*obj = state->funReg[fIndex];
 		if (obj->param != numparam && obj->des.type != V_CFUNCT)
 		{
@@ -165,35 +160,131 @@ void CParser::parseFunctionCall(TGroup& group, Token &FunName)
 			error("Mismatch number of parmeters", s);
 		}
 		else {
-			writeCode(group.fun)->emit2w(OP_CALL, fIndex, numparam);
+			writeCode(group.fun).emit2w(OP_CALL, fIndex, numparam);
 		}
 	}
 	else {
-		error(&FunName.text, "Function, must be defined before it can be call");
-
+			error(&FunName.text, "Function, must be defined before it can be call");
 	}
 }
+
+void CParser::parseFunctionDeclaration(TGroup& group)
+{
+	tokenizer.scan();
+	tokenizer.curToken.type = TK_FUNCTION;
+
+	int fIndex = group.fun->findFunction(state, &tokenizer.curToken.text);
+
+	if (fIndex != NOTFOUND) {
+		error(&tokenizer.curToken.text, "Function already defined");
+		return;
+	}
+
+	fIndex = state->createSymbol(group.fun, tokenizer.curToken.text, V_FUNCT, 0);
+	if (fIndex == NOTFOUND) {
+		error(&tokenizer.curToken.text, "Unable to create.");
+		return;
+	}
+
+	Function* fun = state->funReg[fIndex];
+
+	tokenizer.scan();
+
+	TGroup thisFun(&group, fun);
+	storeParamlist(thisFun);
+	begins++;
+	match(TK_OPENCURLYBRACKET, "{");
+
+	parseBlock(thisFun);
+	match(TK_CLOSECURLYBRACKET, "}");
+
+	begins--;
+
+	//update returns to jump to the end of the function
+	for (unsigned n = 0; n < fun->returns.size(); n++)
+	{
+		writeCode(fun).endJump(fun->returns[n]);
+	}
+
+	//restore last scope
+	if (!state->isError()) writeCode(fun).emit(OP_EXIT);
+}
+//
+//unsigned CParser::parseFunctionDec(TGroup& group)
+//{
+//	tokenizer.scan();
+//	
+//	int fIndex = state->createSymbol(group.fun, tokenizer.curToken.text, V_FUNCT, 0);
+//	if (fIndex == NOTFOUND) {
+//		error(&tokenizer.curToken.text, "Unable to create.");
+//		return NONE;
+//	}
+//
+//	Function* fun = state->funReg[fIndex];
+//
+//	TGroup thisFun(&group, fun);
+//	storeParamlist(thisFun);
+//	begins++;
+//	match(TK_OPENCURLYBRACKET, "{");
+//
+//	parseBlock(thisFun);
+//	if (tokenizer.curToken.type != TK_CLOSECURLYBRACKET) {
+//		//if fail show result
+//		expected(&tokenizer.curToken.text, "}");
+//		//try again
+//		tokenizer.scan();
+//	}
+//	//match(TK_CLOSECURLYBRACKET, "}");
+//
+//	begins--;
+//
+//	//update returns to jump to the end of the function
+//	for (unsigned n = 0; n < fun->returns.size(); n++)
+//	{
+//		writeCode(fun).endJump(fun->returns[n]);
+//	}
+//
+//	//restore last scope
+//	if (!state->isError()) writeCode(fun).emit(OP_EXIT);
+//	return fIndex;
+//}
 
 //Assigmen or function call
 void CParser::parseAssignment(TGroup& group, unsigned index)
 {
-	tokenizer.scan();
+	tokenizer.scan();/*
+	if (tokenizer.curToken.type == TK_FUNCTION)
+	{
+		unsigned fIndex = parseFunctionDec(group);
+		//unsigned fIndex = state->createSymbol(group.fun, tokenizer.curToken.text, V_FUNCT, 0);
+		writeCode(group.fun).emit1w(OP_PUSHF, fIndex);
+		writeCode(group.fun).emit1w(OP_STOREV, index);
+	}
+	else*/
 	if (tokenizer.nextToken.type != TK_SEMICOLON &&
 		tokenizer.nextToken.type != TK_TO) 
 	{
 			parseExpresion(group);
-			writeCode(group.fun)->emit1w(OP_STOREV, index);
+			writeCode(group.fun).emit1w(OP_STOREV, index);
 	} else {
 		switch (tokenizer.curToken.type) {
-		case TK_IDENTIFIER:	
-			parseExpresion(group);	
-			writeCode(group.fun)->emit1w(OP_STOREV, index);
+		case TK_IDENTIFIER:
+			//could this be a function
+			/*indexO = createVarIfnotExist(group, tokenizer.curToken.text, V_VAR, local);
+			if (indexO != NOTFOUND) {
+				writeCode(group.fun).emit2w(OP_STOREF, index,indexO);
+				break;
+			}
+			else {*/
+				parseExpresion(group);
+				writeCode(group.fun).emit1w(OP_STOREV, index);
+			//}
 			return;
-		case TK_STRING: writeCode(group.fun)->emit2w(OP_SETS, index, addConstant(tokenizer.curToken));	break;
-		case TK_INTEGER:writeCode(group.fun)->emit2w(OP_SETI, index, (int)strtol(tokenizer.curToken.text.begin, 0, 0)); break;
-		case TK_FLOAT :	writeCode(group.fun)->emit1i1f(OP_SETF, index, (NUMBER)strtod(tokenizer.curToken.text.begin, 0)); break;
-		case TK_TRUE  :	writeCode(group.fun)->emit1i(OP_SETB, index); writeCode(group.fun)->emitB(1); break;
-		case TK_FALSE :	writeCode(group.fun)->emit1i(OP_SETB, index); writeCode(group.fun)->emitB(0); break;
+		case TK_STRING: writeCode(group.fun).emit2w(OP_SETS, index, addConstant(tokenizer.curToken));	break;
+		case TK_INTEGER:writeCode(group.fun).emit2w(OP_SETI, index, (int)strtol(tokenizer.curToken.text.begin, 0, 0)); break;
+		case TK_FLOAT :	writeCode(group.fun).emit1i1f(OP_SETF, index, (NUMBER)strtod(tokenizer.curToken.text.begin, 0)); break;
+		case TK_TRUE  :	writeCode(group.fun).emit1i(OP_SETB, index); writeCode(group.fun).emitB(1); break;
+		case TK_FALSE :	writeCode(group.fun).emit1i(OP_SETB, index); writeCode(group.fun).emitB(0); break;
 		}
 		tokenizer.scan();
 	}
@@ -201,12 +292,12 @@ void CParser::parseAssignment(TGroup& group, unsigned index)
 
 int CParser::createVarIfnotExist(TGroup& group, TString &varName, VarType type, bool &outLocal)
 {	
-	int localIndex;
+	int localIndex = NONE;
 	// if this group dons't have it search then try it's parent
 	for (TGroup* curGroup = &group; curGroup != 0; curGroup = curGroup->parent)
 	{
 		localIndex = curGroup->findVar(varName, outLocal);
-		if (localIndex!= NOFOUND) 
+		if (localIndex!= NOTFOUND) 
 			return localIndex;
 	}
 
@@ -233,7 +324,7 @@ void CParser::parseExpresionOrFuncCall(TGroup& group)
 	case TK_LESSLESS:
 		var_or_func.type = TK_IDENTIFIER;		
 		index = createVarIfnotExist(group, var_or_func.text, V_VAR, local);
-		if (index == NOFOUND) {
+		if (index == NOTFOUND) {
 			error(&var_or_func.text, "can not be created");
 			return;
 		}
@@ -242,14 +333,22 @@ void CParser::parseExpresionOrFuncCall(TGroup& group)
 		if (group.fun->vars[index].type == V_INT) col++;
 		
 		op = opshortcut[row][col];
-		writeCode(group.fun)->emit1w(op, index);
+		writeCode(group.fun).emit1w(op, index);
 		tokenizer.scan();
-
 		break;
 	case TK_COMMA:
 		index = createVarIfnotExist(group, var_or_func.text, V_VAR, local);
 		tokenizer.scan();
 		parseExpresionOrFuncCall(group);
+		break;
+	case TK_PERIOD: 
+		tokenizer.scan();	// skip period to get the function name
+		index = group.fun->findFunction(state, &tokenizer.curToken.text);
+		if (index != NOTFOUND) {
+			Function* obj = state->funReg[index];
+			tokenizer.scan();
+			parseFunctionCall(group, var_or_func);
+		}
 		break;
 	case '[':
 		tokenizer.scan();
@@ -260,29 +359,25 @@ void CParser::parseExpresionOrFuncCall(TGroup& group)
 		parseExpresion(group);
 
 		index = createVarIfnotExist(group, var_or_func.text, V_ARRAY, local);
-		
-		if (index == NOFOUND) 
-			error(&var_or_func.text, "can't be created");
+		if (index == NOTFOUND) error(&var_or_func.text, "can't be created");
 		else{
-			writeCode(group.fun)->emit1w(OP_STOREVA, index);
+			writeCode(group.fun).emit1w(OP_STOREVA, index);
 		}
 
 		break;
 	case TK_EQ:	
 		index = createVarIfnotExist(group, var_or_func.text, V_VAR, local);
-		if(index == NOFOUND) error(&var_or_func.text, "can't be created");
+		if(index == NOTFOUND) error(&var_or_func.text, "can't be created");
 		else
 			parseAssignment(group, index);
 
 		break;
-	case TK_OPENPARENTHESIS:
-		parseFunctionCall(group, var_or_func);
-		break;
+	case TK_OPENPARENTHESIS: parseFunctionCall(group, var_or_func);		break;
 	default:
 		if (var_or_func.type == TK_IDENTIFIER)
 		{
 			index = createVarIfnotExist(group, var_or_func.text, V_VAR, local);
-			if (index == NOFOUND) error(&var_or_func.text, "Identifier not found");
+			if (index == NOTFOUND) error(&var_or_func.text, "Identifier not found");
 			//writeCode(state).emit1i(OP_PUSHVA, index);
 			//writeCode(state).emit1i(OP_PUSHV, index);
 		}
@@ -341,14 +436,14 @@ void CParser::parseFactor(TGroup& group)
 		parseExpresion(group);
 		return;
 	case TK_FLOAT:	
-		writeCode(group.fun)->emit1f(OP_PUSHF, (float)strtod(tokenizer.curToken.text.begin, NULL));/*addConstant(tokenizer.curToken));*/ break;
+		writeCode(group.fun).emit1f(OP_PUSHF, (float)strtod(tokenizer.curToken.text.begin, NULL));/*addConstant(tokenizer.curToken));*/ break;
 	case TK_INTEGER:
-		writeCode(group.fun)->emit1i(OP_PUSHI, (int)strtol(tokenizer.curToken.text.begin, NULL, 0)/*addConstant(tokenizer.curToken)*/);	
+		writeCode(group.fun).emit1i(OP_PUSHI, (int)strtol(tokenizer.curToken.text.begin, NULL, 0)/*addConstant(tokenizer.curToken)*/);	
 		break;
-	case TK_TRUE : writeCode(group.fun)->emitBool(OP_PUSHB, true);	break;
-	case TK_FALSE: writeCode(group.fun)->emitBool(OP_PUSHB, false);	break;
+	case TK_TRUE : writeCode(group.fun).emitBool(OP_PUSHB, true);	break;
+	case TK_FALSE: writeCode(group.fun).emitBool(OP_PUSHB, false);	break;
 	case TK_STRING:
-		writeCode(group.fun)->emit1w(OP_PUSHS, addConstant(tokenizer.curToken));	break;
+		writeCode(group.fun).emit1w(OP_PUSHS, addConstant(tokenizer.curToken));	break;
 		break;
 	case TK_IDENTIFIER:
 		varName = tokenizer.curToken;//save the var name
@@ -365,15 +460,23 @@ void CParser::parseFactor(TGroup& group)
 			match(TTOKEN(']'), "clossing bracket spected");
 
 			index = createVarIfnotExist(group, varName.text, V_VAR, local);
-			writeCode(group.fun)->emit1w(OP_PUSHVA, index);
+			writeCode(group.fun).emit1w(OP_PUSHVA, index);
 		}
 		else 
 		{
-			index = createVarIfnotExist(group, varName.text, V_VAR, local);
-			if (index == NOFOUND)
-				error(&varName.text, "can't be created");
-
-			writeCode(group.fun)->emit1i(OP_PUSHV, index);
+			//is there a function with this name
+			index = state->global->findFunctionRecursive(state, &varName.text);
+			if (index != NOTFOUND)
+			{
+				writeCode(group.fun).emit1w(OP_PUSHF, index);
+			}
+			else {
+				index = createVarIfnotExist(group, varName.text, V_VAR, local);
+				if (index == NOTFOUND) {
+					error(&varName.text, "can't be created");
+					writeCode(group.fun).emit1i(OP_PUSHV, index);
+				}
+			}
 		}
 		return;
 	default:	expected(&tokenizer.curToken.text, "Number or variable");
@@ -441,15 +544,15 @@ void CParser::parseTerm(TGroup& group)
 		parseFactor(group);
 
 		switch (type){
-		case TK_MULT:	writeCode(group.fun)->emit(OP_MULT);		break;
-		case TK_DIV:	writeCode(group.fun)->emit(OP_DIV);		break;
-		case TK_AND:	writeCode(group.fun)->emit(OP_AND);		break;
-		case TK_GT:		writeCode(group.fun)->emit(OP_GT);		break;
-		case TK_GE:		writeCode(group.fun)->emit(OP_GE);		break;
-		case TK_LT:		writeCode(group.fun)->emit(OP_LT);		break;
-		case TK_LE:		writeCode(group.fun)->emit(OP_LE);		break;
-		case TK_EQ:		writeCode(group.fun)->emit(OP_EQ);		break;
-		case TK_POWER:	writeCode(group.fun)->emit(OP_POWER);	break;
+		case TK_MULT:	writeCode(group.fun).emit(OP_MULT);		break;
+		case TK_DIV:	writeCode(group.fun).emit(OP_DIV);		break;
+		case TK_AND:	writeCode(group.fun).emit(OP_AND);		break;
+		case TK_GT:		writeCode(group.fun).emit(OP_GT);		break;
+		case TK_GE:		writeCode(group.fun).emit(OP_GE);		break;
+		case TK_LT:		writeCode(group.fun).emit(OP_LT);		break;
+		case TK_LE:		writeCode(group.fun).emit(OP_LE);		break;
+		case TK_EQ:		writeCode(group.fun).emit(OP_EQ);		break;
+		case TK_POWER:	writeCode(group.fun).emit(OP_POWER);	break;
 		}
 	}
 	return;
@@ -469,9 +572,9 @@ void CParser::parseExpresion(TGroup& group)
 
 		switch (type)
 		{
-		case TK_PLUS:	writeCode(group.fun)->emit(OP_PLUS);		break;
-		case TK_MINUS:	writeCode(group.fun)->emit(OP_MINUS); 	break;
-		case TK_OR:		writeCode(group.fun)->emit(OP_OR);		break;
+		case TK_PLUS:	writeCode(group.fun).emit(OP_PLUS);		break;
+		case TK_MINUS:	writeCode(group.fun).emit(OP_MINUS); 	break;
+		case TK_OR:		writeCode(group.fun).emit(OP_OR);		break;
 		}
 	}	
 	return;
@@ -486,7 +589,7 @@ void CParser::parseIF(TGroup& group)
 	parseExpresion(group);
 
 	if(match(TK_THEN, "Then"))
-		l1 = writeCode(group.fun)->beginjump(OP_JMZ);//jump if false to l1
+		l1 = writeCode(group.fun).beginjump(OP_JMZ);//jump if false to l1
 	
 	if (tokenizer.curToken.type == TK_SEMICOLON && 
 		tokenizer.curToken.text.begin[0] == 0)
@@ -499,8 +602,8 @@ void CParser::parseIF(TGroup& group)
 	if(tokenizer.curToken.type == TK_ELSE) 
 	{
 		tokenizer.scan();
-		l2 = writeCode(group.fun)->beginjump(OP_JMP); //jump regardless
-		writeCode(group.fun)->endJump(l1);
+		l2 = writeCode(group.fun).beginjump(OP_JMP); //jump regardless
+		writeCode(group.fun).endJump(l1);
 		TGroup innerGroup2(&group, group.fun);
 		parseBlock(innerGroup2);
 	}
@@ -509,9 +612,9 @@ void CParser::parseIF(TGroup& group)
 	{
 		ifs--;	//leaving an if stamentes
 		if(!l2)	//no else found so update label1(jump if false)
-			writeCode(group.fun)->endJump(l1);
+			writeCode(group.fun).endJump(l1);
 		else 
-			writeCode(group.fun)->endJump(l2);
+			writeCode(group.fun).endJump(l2);
 	}
 }
 
@@ -531,7 +634,7 @@ void CParser::parseForLoop(TGroup& group)
 	parseAssignment(group, varIndex);
 
 	if (!match(TK_TO, "To")) return;
-	l2 = writeCode(group.fun)->getCurPos();
+	l2 = writeCode(group.fun).getCurPos();
 	parseExpresion(group);			
 
 	TMeta parent;
@@ -541,19 +644,19 @@ void CParser::parseForLoop(TGroup& group)
 
 	for (unsigned n = 0; n < forGroup.continues.size(); n++)
 	{
-		writeCode(group.fun)->endJump(forGroup.continues[n]);
+		writeCode(group.fun).endJump(forGroup.continues[n]);
 	}
 
-	writeCode(group.fun)->emit1i(OP_PUSHV, varIndex);
-	writeCode(group.fun)->emit(OP_EQ);
-	writeCode(group.fun)->emit1w(OP_INCI, varIndex);
+	writeCode(group.fun).emit1i(OP_PUSHV, varIndex);
+	writeCode(group.fun).emit(OP_EQ);
+	writeCode(group.fun).emit1w(OP_INCI, varIndex);
 	int jumptto = (int)(/*(writeCode(group.parent)->getCurPos() /*- */l2/*+1)*/);
-	writeCode(group.fun)->emit1w(OP_JMZ, jumptto);
+	writeCode(group.fun).emit1w(OP_JMZ, jumptto);
 	if(match(TK_ENDFOR, "EndFor")) fors--;
 
 	for (unsigned n = 0; n < forGroup.breaks.size(); n++)
 	{
-		writeCode(group.fun)->endJump(forGroup.breaks[n]);
+		writeCode(group.fun).endJump(forGroup.breaks[n]);
 	}
 }
 
@@ -561,7 +664,7 @@ void CParser::parseContinue(TGroup& group)
 {
 	tokenizer.scan();
 	if (!state->isError()) {
-		group.continues.push_back((short)writeCode(group.fun)->beginjump(OP_JMP));
+		group.continues.push_back((short)writeCode(group.fun).beginjump(OP_JMP));
 	}
 }
 
@@ -574,44 +677,27 @@ void CParser::parseReturn(TGroup& group)
 
 	if (!state->isError()) {
 		if(group.fun->des.type == V_FUNCT)
-		   group.fun->returns.push_back((short)writeCode(group.fun)->beginjump(OP_JMP));
+		   ((Function*)group.fun)->returns.push_back((short)writeCode(group.fun).beginjump(OP_JMP));
 	}
 }
 
-void CParser::parseClassDef(TGroup& group)
-{
-	tokenizer.scan();
-
-	if (tokenizer.curToken.type == TK_IDENTIFIER)
-	{
-		/*Token classname = tokenizer.curToken;
-		TParent* parent = NULL;
-		parent = group->parent;
-		int index = state->createSymbol(parent, &classname.text, V_CLASS, NULL);
-		TGroup innerGroup(state->objects[index]);
-		begins++;
-		tokenizer.scan();
-		parseBlock(&innerGroup);
-		match(tokenizer.curToken.type, "end");*/
-	}
-}
 
 bool CParser::parseStatement(TGroup& group)
 {	
 	switch (tokenizer.curToken.type)
 	{
-	case TK_IF				: parseIF(group);			break;
+	case TK_IF				: parseIF(group);		break;
 	case TK_IDENTIFIER		: parseExpresionOrFuncCall(group);break;
 	case TK_OPENPARENTHESIS :
 	case TK_STRING			:
 	case TK_FLOAT			:
-	case TK_INTEGER			: parseExpresion(group);			break;	
+	case TK_INTEGER			: parseExpresion(group);break;	
 	case TK_FOR				: parseForLoop(group); 	break;
-	case TK_BREAK			: parseBreak(group);		break;
+	case TK_BREAK			: parseBreak(group);	break;
 	case TK_CONTINUE		: parseContinue(group);	break;
-	case TK_RETURN			: parseReturn(group);		break;
+	case TK_RETURN			: parseReturn(group);	break;
 	case TK_FUNCTION		: parseFunctionDeclaration(group);	return true;
-	case TK_CLASS			: parseClassDef(group);break;
+	case TK_CLASS			: parseClassDef(group);				return true;
 		/*
 		case TK_WHILE: return parseWhile();
 		case TK_SWITCH: return parseSwitch();
@@ -619,9 +705,8 @@ bool CParser::parseStatement(TGroup& group)
 		*/		
 	}
 	
-	if (tokenizer.curToken.type != TK_SEMICOLON && 
-		tokenizer.curToken.type != TK_CLOSEPARENTHESIS
-		) {
+	if (tokenizer.curToken.type != TK_SEMICOLON && tokenizer.curToken.type != TK_CLOSEPARENTHESIS &&
+		tokenizer.curToken.type!=TK_CLOSECURLYBRACKET) {
 		//if fail show result
 		expected(&tokenizer.curToken.text, ";");
 		//try again
@@ -638,7 +723,8 @@ void CParser::parseBlock(TGroup& group)
 {
 	while (tokenizer.curToken.type != TK_EOF)
 	{
-		switch (tokenizer.curToken.type) {
+		switch (tokenizer.curToken.type) 
+		{
 		case TK_CLOSECURLYBRACKET: if (!begins)	error("}", "Statement"); return;
 		case TK_END		: if (!begins)	error("End", "Statement"); return;
 		case TK_ELSE	: if (!ifs)		error("Else", "Statement"); return;
@@ -676,7 +762,7 @@ bool CParser::parse(const char* s)
 	
 	if (!state->isError())
 	{
-		writeCode(state->global)->emit(OP_HALT);
+		writeCode(state->global).emit(OP_HALT);
 		return true;
 	}
 

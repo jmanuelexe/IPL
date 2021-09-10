@@ -29,6 +29,7 @@ enum OPCODE
 	OP_PUSHVA,
 	OP_POP,
 	OP_STOREVA, 
+	OP_STOREF,	//function
 	OP_STOREV,	//local variable[n] = stack
 	OP_STOREV0,	//shortcut //local variable[0] = stack
 	OP_STOREV1,
@@ -60,7 +61,8 @@ enum OPCODE
 	OP_DECF,	//Decrement a local float variable
 	OP_JMZ,		//ump if 0 or false
 	OP_JMP,		//unconditional jump (incrementing intrusction pointer)
-	OP_CALL		//call a function or C Function
+	OP_CALL,	//call a function or C Function
+	OP_ICALL	//inderect call a function or C Function
 };
 
 #define ADD_OPCODE(op) case op: return #op
@@ -102,11 +104,13 @@ static const char* OPCODESTR(int code)
 		ADD_OPCODE(OP_JMZ);
 		ADD_OPCODE(OP_JMP);
 		ADD_OPCODE(OP_CALL);
+		ADD_OPCODE(OP_ICALL);
 		ADD_OPCODE(OP_INCI);
 		ADD_OPCODE(OP_INCF);
 		ADD_OPCODE(OP_DECI);
 		ADD_OPCODE(OP_DECF);
 		ADD_OPCODE(OP_STOREVA);
+		ADD_OPCODE(OP_STOREF);
 		ADD_OPCODE(OP_STOREV);
 		ADD_OPCODE(OP_STOREV0);
 		ADD_OPCODE(OP_STOREV1);
@@ -119,7 +123,8 @@ static const char* OPCODESTR(int code)
 		ADD_OPCODE(OP_SETF);		
 		ADD_OPCODE(OP_SETB);		
 		ADD_OPCODE(OP_POWER);
-		default:return "unrecognize instuction"; break;
+		default:
+			return "unrecognize instuction"; break;
 	}
 	return "";
 };

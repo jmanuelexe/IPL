@@ -21,22 +21,24 @@ struct CState
 private:
 	//Stack stack;						//for stack operation
 	int	m_error;						//store error (parsing, compiling)
+	std::vector<TObject> objReg;		//registry of objects
 	FucList funReg;						//Function Registry
 	ArrayList arrayReg;					//Array Registry
 	//VarsReg framestack;					//frame stack locals variables
-	VarList constReg;					//constant Registry(so far String)
 	Function *global;					//Native function
+public:
+	VarList constReg;					//constant Registry(so far String)
 public:
 	~CState();
 	void destroy();
 	void init();
 	int addCFunction(const char *name, c_fun);
-	int createSymbol(Function*parent, const TString& name, const VarType type, c_fun data);
+	int createSymbol(TObjectDef *parent, const TString& name, const VarType type, c_fun data);
 	void setError(int er) {
 		m_error = er; 
 	}
 	int getError() { return m_error; }
 	void deleteVal(TVariant* val);
 	int isError();
-	int findSymbol(const Function* fun, const TString& name, bool& local) const;
+	int findSymbol(const TObjectDef* fun, const TString& name, bool& local) const;
 };

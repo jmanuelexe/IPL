@@ -4,7 +4,8 @@
 Stack::Stack()
 {
 	memset(data, 0, sizeof(data));
-	sp = top = data;
+	top = data;
+	sp = frame;
 }
 
 void Stack::pushf(NUMBER num) {

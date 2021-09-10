@@ -57,7 +57,9 @@ void CVM::printval(CState *state, TVariant* x)
 	{
 	case V_NULL: printf("null"); break;
 	case V_FUNCT:
-		//printf("%.*s()", state->framestack.stack[x->as.i].des.name.length, state->framestack.stack[x->as.i].des.name.begin); break;
+		//printf("%.*s()", state->framestack.stack[x->as.i].des.name.length, state->framestack.stack[x->as.i].des.name.begin); 
+		printf("f(%d)", x->as.i);
+		break;
 	case V_ARRAY:
 		printf("{");
 		for (word i = 0; i < x->as.array->count - 1; i++) {
@@ -78,6 +80,17 @@ void CVM::printval(CState *state, TVariant* x)
 //
 //
 //***************************************************************************
+
+#ifdef DEBUG
+#define PUSHVAR(index)\
+	printf("%.*s", fun->vars[index].name.length, fun->vars[index].name.begin);\
+	printf("%-12s", " ");\
+	stack.pushvar(stack.sp[index]);
+#else
+#define PUSHVAR(index) stack.pushvar(stack.sp[index]);
+#endif // DEBUG
+
+
 #define POP_A_AND_B_THEN b = stack.pop(); a = stack.pop();
 #define INVALIDMATHOPERANDS {state->setError(INVALID_OPERATOR);stack.pushb(0);}
 #define STR_CONCAT_THEN if (a->type == V_STRING) {char s[80];\
@@ -192,8 +205,7 @@ void CVM::store(CState * state, Function *fun, int index, bool local)
 	assing(state, source, destination);
 
 #ifdef DEBUG
-	printf("%.*s=", fun->vars[index].name.length, fun->vars[index].name.begin);
-	printval(state, source);
+	printf("%.*s %-7s", fun->vars[index].name.length, fun->vars[index].name.begin, " ");
 	printf("\t");
 #endif
 }
@@ -204,17 +216,19 @@ for (x = stack.data; x < stack.top-1; x++){ \
 	printval(state, x); printf(", ");\
 }	if(stack.data!=stack.top) printval(state, x); printf(" ]\n"); 
 
-#define PUSHLVAR(index) printStr(&fun->vars[index].name); printf("%-14s"," ");\
-			stack.pushvar(stack.sp[5]);
-			//printval(state, &stack.sp[index]);
-
+//#define PUSHLVAR(index) printStr(&fun->vars[index].name); printf("%-14s"," ");\
+//			stack.pushvar(stack.sp[5]);
+//			//printval(state, &stack.sp[index]);
+//
 void CVM::_run(CState *state, Function* fun)
 {
 	word count, index;
-	char* ip = fun->pfun.bytecode->get();
-	char* cp = ip;
+	char *cp, * ip = fun->bytecode.get();
+	cp = ip;
 	TVariant *b, *a, *prvSP = stack.sp;
 	OPCODE opcode;
+	Function* pFun;
+
 	stack.sp += fun->vars.size();
 
 	if (state->isError()) return;
@@ -282,6 +296,7 @@ void CVM::_run(CState *state, Function* fun)
 			printf("=%d ", stack.sp[index].as.i);
 #endif
 		}		break;
+		case OP_PUSHF: stack.pushFunc(AS_WORD(ip)); ip += WORD_SIZE;	break;
 		case OP_PUSHI: stack.pushi(AS_INT(ip));	ip += INT_SIZE;	break;
 		case OP_PUSH0: stack.pushi(0);break;
 		case OP_PUSH1: stack.pushi(1);break;
@@ -289,14 +304,13 @@ void CVM::_run(CState *state, Function* fun)
 		case OP_PUSH3: stack.pushi(3);break;
 		case OP_PUSH4: stack.pushi(4);break;
 		case OP_PUSH5: stack.pushi(5);break;
-		case OP_PUSHF: stack.pushf(AS_FLOAT(ip));	ip += FLOAT_SIZE;	break;
 		case OP_PUSHB: stack.pushb(AS_BOOL(ip));	ip++;		break;
-		case OP_PUSHV0  :stack.pushvar(stack.sp[0]);break;
-		case OP_PUSHV1	:stack.pushvar(stack.sp[1]);break;
-		case OP_PUSHV2	:stack.pushvar(stack.sp[2]);break;
-		case OP_PUSHV3	:stack.pushvar(stack.sp[3]);break;
-		case OP_PUSHV4	:stack.pushvar(stack.sp[4]);break;
-		case OP_PUSHV5	:stack.pushvar(stack.sp[5]); break;
+		case OP_PUSHV0	:PUSHVAR(0);  break;
+		case OP_PUSHV1	:PUSHVAR(1); break;
+		case OP_PUSHV2	:PUSHVAR(2); break;
+		case OP_PUSHV3	:PUSHVAR(3); break;
+		case OP_PUSHV4	:PUSHVAR(4); break;
+		case OP_PUSHV5	:PUSHVAR(5);  break;
 		case OP_PUSHV	:stack.pushvar(stack.sp[AS_WORD(ip)]); ip += WORD_SIZE;	break;
 		case OP_PUSHS	:stack.pushString(AS_WORD(ip)); ip += WORD_SIZE; break;//add the index of the string constant
 		case OP_PUSHVA	:
@@ -321,6 +335,16 @@ void CVM::_run(CState *state, Function* fun)
 		case OP_STOREV4:store(state, fun, 4, true); break;
 		case OP_STOREV5:store(state, fun, 5, true); break;
 		case OP_STOREV :store(state, fun, AS_WORD(ip), true); ip += WORD_SIZE; break;
+		case OP_STOREF: {
+			TVariant* source, * destination;
+			destination = &stack.sp[AS_WORD(ip)];
+			ip += WORD_SIZE;
+			destination->as.fun = state->funReg[AS_WORD(ip)];
+			destination->type = V_FUNCT;
+			ip += WORD_SIZE;
+			//store(state, fun, AS_WORD(ip), true); ip += WORD_SIZE; 
+		}
+			break;
 		case OP_PLUS:
 			POP_A_AND_B_THEN
 			//STR_CONCAT_THEN
@@ -389,27 +413,36 @@ void CVM::_run(CState *state, Function* fun)
 #ifdef DEBUG
 			printf("jump to %p\t", ip);
 #endif
-			break;		
+			break;
 		case OP_CALL:
-			index = READ_WORD(ip);	// function index
-			count	 = READ_WORD(ip);	// Count of parameter
+		case OP_ICALL:
+			index = READ_WORD(ip);	//function index
+			count = READ_WORD(ip);	//Count of parameter
+			if (opcode == OP_ICALL)
+			{
+				TVariant* source = &stack.sp[index];
+				index = source->as.i;
+				if (source->type != V_FUNCT) 
+					break;
+			}
 #ifdef DEBUG
 			printStr(&state->funReg[index]->des.name);
 #endif
-			//call normal function
-			if (state->funReg[index]->des.type == V_FUNCT)
-			{
-				Function* pFun = state->funReg[index];
-				_run(state, pFun);
-				//restore sp
-				stack.sp = prvSP;
-			}//call a C function
-			else if (state->funReg[index]->des.type == V_CFUNCT) {
-				state->funReg[index]->pfun.cfun(state, &stack, count);
+				//TVariant* source = &stack.sp[vindex];
+				//index = source->as.i;			//call normal function
+				if (state->funReg[index]->des.type == V_FUNCT)
+				{
+					pFun = state->funReg[index];
+					_run(state, pFun);
+					//restore sp
+					stack.sp = prvSP;
+				}//call a C function
+				else if (state->funReg[index]->des.type == V_CFUNCT) {
+					state->funReg[index]->cfun(state, &stack, count);
 #ifdef DEBUG
-				printf("%-6s"," ");
+					printf("%-6s", " ");
 #endif
-			}
+				}			
 			break;
 		case OP_EXIT: 
 #ifdef DEBUG
@@ -423,10 +456,20 @@ void CVM::_run(CState *state, Function* fun)
 		}
 
 #ifdef DEBUG
-		SHOWSTACK
+		
+		printf("[ "); TVariant* x;
+		for (x = stack.data; x < stack.top - 1; x++) 
+		{
+			printval(state, x); printf(", ");
+		}
+
+		if (stack.data != stack.top) 
+			printval(state, x); printf(" ]\n");
 #endif
 	}
-	printf("%p: %-10s ", ip, OPCODESTR((OPCODE)*ip));
+#ifdef DEBUG
+	printf("\n%p: %-10s ", ip, OPCODESTR((OPCODE)*ip));
+#endif
   }
 
 //5030 broadway suite 707

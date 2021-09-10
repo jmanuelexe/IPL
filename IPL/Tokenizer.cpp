@@ -61,8 +61,8 @@ void Tokenizer::init()
 
 	chcomp['\n'] = chcomp['\t']= chcomp[' '] = ttWhitespace;
 
-	chcomp['.'] = chcomp['{'] = chcomp['}'] =
-	chcomp[')'] = chcomp['('] = chcomp[','] = chcomp['='] = 
+	chcomp['.'] = chcomp[','] = chcomp['{'] = chcomp['}'] =
+	chcomp[')'] = chcomp['('] = chcomp['='] = 
 	chcomp['>'] = chcomp['<'] = chcomp['\'']= chcomp['"'] = 
 	chcomp['^'] = chcomp[';'] = chcomp['+'] = chcomp['-'] = 
 	chcomp['['] = chcomp[']'] = chcomp['-'] = chcomp['!'] =
@@ -269,6 +269,7 @@ void Tokenizer::parseSpecial()
 		}
 		else nextToken.type = TK_PLUS;
 		break;
+	case '.': nextToken.type = TK_PERIOD; break;
 	case '*': nextToken.type = TK_MULT; break;
 	case '//':nextToken.type = TK_DIV; break;
 	case '^': nextToken.type = TK_POWER; break;

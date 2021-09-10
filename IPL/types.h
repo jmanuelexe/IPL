@@ -21,7 +21,7 @@ typedef float NUMBER;
 #define READ_BOOL(ip) *((bool*)(ip)); ip++;
 #define READ_INT(ip) *(int*)(ip); ip+=4;
 
-#define NOFOUND -1000000
+#define NOTFOUND -1000000
 #define NONE	-1000001
 
 
@@ -82,14 +82,6 @@ struct TData {
 	byte ref;	//reference counting
 	char* p;	//a pointer to the data
 	byte size;	//size of bytes
-};
-
-//Descriction of a variable
-struct TDes
-{
-	word len;	//size for str or array
-	VarType type;	//type of vatiable see above
-	TString name;	//ID that points to the name of the variable to avoid repetition
 };
 
 class Array;

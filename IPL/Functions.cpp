@@ -14,7 +14,7 @@ int TObjectDef::findFunction(CState* state, const TString* s)
 		if (strEq(&state->funReg[localFunIndex[v]]->des.name, s))
 			return localFunIndex[v];
 	}
-	return NOFOUND;
+	return NOTFOUND;
 }
 
 /***********************************************************************************
@@ -23,10 +23,7 @@ int TObjectDef::findFunction(CState* state, const TString* s)
 
 Function::Function(VarType type, c_fun data)
 {
-	if (type == V_FUNCT)
-		pfun.bytecode = new CCodeGen();
-	else
-		pfun.cfun = data;
+	if (type== V_CFUNCT) cfun = data;
 
 	des.type = V_NULL;
 	parent = 0;
@@ -36,14 +33,6 @@ Function::Function(VarType type, c_fun data)
 //dispose its oject
 void Function::dispose()
 {
-	if (des.type == V_FUNCT)
-	{
-		if (pfun.bytecode)
-		{
-			delete pfun.bytecode;
-			pfun.bytecode = 0;
-		}
-	}
 }
 
 //find a function in this Object if not found it will check on its parent and up until it reaches the Main (root) object reurn NOFOUND
@@ -66,12 +55,12 @@ int TObjectDef::findFunctionRecursive(CState* state, const TString* name)
 }
 
 //finds a variable in this class
-int Function::findVars(const TString& t) const
+int TObjectDef::findVars(const TString& t) const
 {
 	for (int index = 0; index < (int)vars.size(); index++)
 	{
 		if (strEq(&vars[index].name, &t))
 			return index;
 	}
-	return NOFOUND;
+	return NOTFOUND;
 }

@@ -13,16 +13,26 @@ void CState::init()
 	name = makeString("Main");
 	int index = createSymbol(0, name, V_FUNCT, NULL);
 
-	if (index != NOFOUND)
+	if (index != NOTFOUND)
 		global = funReg[index];
 }
 
 int CState::addCFunction(const char* FunName, c_fun fun)
 {
 	TString name;
+	
 	name = makeString(FunName);
-	return createSymbol(global, name, V_CFUNCT, fun);
+	
+	int findex;// , vindex;
 
+	findex = createSymbol(global, name, V_CFUNCT, fun);
+	//vindex = createSymbol(global, name, V_VAR, fun);
+	//vindex = global.addVar(name, V_VAR, createSymbol(global, name, V_VAR, 0));
+	//global->findVars(name);
+	//global->bytecode.emit1w(OP_PUSHF, findex);
+	//global->bytecode.emit1w(OP_STOREV, vindex);
+	//return createSymbol(global, name, V_CFUNCT, fun);
+	return findex;
 }
 
 CState::~CState()
@@ -66,20 +76,18 @@ int CState::isError()
 }
 
 //find symbol in the scope or deeper if not found on the active scope
-int CState::findSymbol(const Function* fun, const TString& name, bool& local) const
+int CState::findSymbol(const TObjectDef* fun, const TString& name, bool& local) const
 {
-	int index = -1;
-	const Function* pCurFun = fun;
+	int index = NOTFOUND;
+	const TObjectDef* pCurFun = fun;
 	static int stepback = 0;
 	int i = 0;
 	local = true;
-	index = pCurFun->findVars(name);
-	return index;
-	/*
+	
 	while (index < 0 && pCurFun)
 	{
 		index = pCurFun->findVars(name);
-		if (index != NOFOUND)
+		if (index != NOTFOUND)
 		{
 			return index;
 		}else {
@@ -87,13 +95,12 @@ int CState::findSymbol(const Function* fun, const TString& name, bool& local) co
 			pCurFun = pCurFun->parent;
 		}
 	}
-	*/
-	return NOFOUND;
+	return NOTFOUND;
 }
 
 // Creates a variable in the "parent" or create function(C or native)
 // add it to the "parent" function scope if parent = null
-int CState::createSymbol(Function* parent, const TString& name, const VarType type, c_fun data)
+int CState::createSymbol(TObjectDef* parent, const TString& name, const VarType type, c_fun data)
 {
 	int index = NONE;
 	TDes des;
@@ -107,6 +114,7 @@ int CState::createSymbol(Function* parent, const TString& name, const VarType ty
 	{
 	case V_CFUNCT:
 	case V_FUNCT:
+	case V_CLASS:
 	{
 		des.type = type;
 		Function* o = new Function(type, data);

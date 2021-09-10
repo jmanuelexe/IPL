@@ -7,9 +7,11 @@ class Stack
 {
 public:
 
-	TVariant* top,					//top of the stack this should be obvious
-		*sp;						//stack pointer, this mark the beggin of the current function start of the stack
+	TVariant* top;					//top of the stack this should be obvious
 	TVariant data[100];				//this is the data of the stack
+	TVariant frame[100];			//this is the data of the framestack
+	TVariant *sp;					//stack pointer, this mark the beggin of the current function start of the stack
+
 public:
 	Stack();
 	void pushf(NUMBER num);
